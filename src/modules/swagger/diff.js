@@ -1,44 +1,7 @@
-import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import path from "node:path";
 import { eachOperation, expand, findOperation } from "./spec.js";
-
-const SNAPSHOT_DIR =
-  process.env.SWAGGER_SNAPSHOT_DIR || path.join(homedir(), ".storix-mcp", "swagger", "snapshots");
 
 const MAX_DEPTH = 20;
 const EXPAND_DEPTH = 24;
-
-function snapshotPath(label) {
-  const safe = label.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return path.join(SNAPSHOT_DIR, `${safe}.json`);
-}
-
-export async function saveSnapshot(label, spec) {
-  await mkdir(SNAPSHOT_DIR, { recursive: true });
-  const file = snapshotPath(label);
-  await writeFile(file, JSON.stringify(spec), "utf8");
-  return file;
-}
-
-export async function loadSnapshot(label) {
-  try {
-    return JSON.parse(await readFile(snapshotPath(label), "utf8"));
-  } catch (e) {
-    if (e.code === "ENOENT") return null;
-    throw e;
-  }
-}
-
-export async function listSnapshots() {
-  try {
-    const files = await readdir(SNAPSHOT_DIR);
-    return files.filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""));
-  } catch (e) {
-    if (e.code === "ENOENT") return [];
-    throw e;
-  }
-}
 
 // springdoc은 content-type을 application/json이 아니라 */* 로 내보내는 경우가 많다.
 // json을 우선하되 없으면 첫 번째 content를 쓴다.

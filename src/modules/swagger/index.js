@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { text, fail, namespaced } from "../../shared/mcp.js";
+import { getSession, refreshSession, isExpired } from "../../shared/session.js";
 import { config, fetchSpec, expand, eachOperation, findOperation } from "./spec.js";
-import { saveSnapshot, loadSnapshot, listSnapshots, diffSpecs, formatDiff } from "./diff.js";
+import { diffSpecs, formatDiff } from "./diff.js";
+import { saveSnapshot, loadSnapshot, listSnapshots, listEntries } from "./snapshots.js";
+import { collectHistory, formatHistory } from "./history.js";
 import { GUIDE } from "./guide.js";
+import { collectErrors, commonErrors, renderForOperation, renderByCode, renderList } from "./errors.js";
 
 export const NAMESPACE = "swagger";
 
@@ -129,6 +133,39 @@ export function register(server) {
   );
 
   tool(
+    "errors",
+    {
+      title: "에러 코드",
+      description:
+        "이 API가 어떤 에러 코드를 내는지만 뽑아 보여준다. get_endpoint는 스키마까지 통째로 주지만 " +
+        "에러 분기만 짤 때는 이게 훨씬 짧다. code를 주면 그 코드가 어디서 나가는지 거꾸로 찾는다. " +
+        "인자 없이 부르면 전체 코드 목록이라 프론트 코드의 에러 분기와 대조할 때 쓴다.",
+      inputSchema: {
+        path: z.string().optional().describe("엔드포인트 경로. method와 같이 준다"),
+        method: z.string().optional().describe("HTTP 메서드"),
+        tag: z.string().optional().describe("기능 단위로 좁힐 때. 부분 일치"),
+        code: z.string().optional().describe("이 코드가 어느 API에서 나가는지 역방향 조회. 부분 일치"),
+      },
+    },
+    async ({ path, method, tag, code }) => {
+      const spec = await fetchSpec();
+      const entries = [...collectErrors(spec).values()];
+      const common = commonErrors(spec);
+
+      if (code) return text(renderByCode(entries, code));
+
+      if (path) {
+        if (!method) return fail("path를 줄 때는 method도 같이 주세요.");
+        const found = findOperation(spec, method, path);
+        if (!found) return fail(`${method.toUpperCase()} ${path} 를 스펙에서 못 찾았습니다.`);
+        return text(renderForOperation(spec, entries, `${found.method} ${found.path}`, common));
+      }
+
+      return text(renderList(entries, { tag, common }));
+    }
+  );
+
+  tool(
     "call_api",
     {
       title: "API 호출",
@@ -166,19 +203,35 @@ export function register(server) {
       const url = new URL(filled.startsWith("http") ? filled : `${config.BASE_URL}${filled}`);
       for (const [k, v] of Object.entries(query || {})) url.searchParams.set(k, String(v));
 
-      const bearer = token || DEV_TOKEN;
+      // 인자로 준 토큰이 우선. 없으면 auth_login으로 받아둔 세션, 그것도 없으면 환경변수.
+      const useSession = !token && Boolean(getSession());
+      if (useSession && isExpired()) await refreshSession(config.BASE_URL);
+
+      const bearerOf = () => token || getSession()?.accessToken || DEV_TOKEN;
       const reqHeaders = { Accept: "application/json", ...(headers || {}) };
-      if (bearer) reqHeaders.Authorization = `Bearer ${bearer}`;
       if (body !== undefined) reqHeaders["Content-Type"] = "application/json";
+
+      const send = async () => {
+        const bearer = bearerOf();
+        const h = { ...reqHeaders };
+        if (bearer) h.Authorization = `Bearer ${bearer}`;
+        return fetch(url, {
+          method: m,
+          headers: h,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+      };
 
       const started = Date.now();
       let res;
+      let refreshed = false;
       try {
-        res = await fetch(url, {
-          method: m,
-          headers: reqHeaders,
-          body: body === undefined ? undefined : JSON.stringify(body),
-        });
+        res = await send();
+        // 만료를 미리 못 잡는 경우가 있다. 401이면 한 번만 다시 받아서 재시도한다.
+        if (res.status === 401 && useSession && (await refreshSession(config.BASE_URL))) {
+          refreshed = true;
+          res = await send();
+        }
       } catch (e) {
         return fail(`요청 실패: ${e.message}`);
       }
@@ -192,10 +245,15 @@ export function register(server) {
         // JSON이 아니면 원문 그대로
       }
 
-      const authNote =
-        !bearer && res.status === 401
-          ? "\n\n(토큰이 없습니다. STORIX_DEV_TOKEN을 설정하거나 token 인자로 넘기세요.)"
-          : "";
+      const authNote = !bearerOf()
+        ? res.status === 401
+          ? "\n\n(토큰이 없습니다. auth_login으로 로그인하거나 token 인자로 넘기세요.)"
+          : ""
+        : res.status === 401 && useSession
+          ? "\n\n(토큰을 다시 받아 재시도했는데도 401입니다. auth_login으로 다시 로그인하세요.)"
+          : refreshed
+            ? "\n\n(만료된 토큰을 재발급해 다시 보냈습니다.)"
+            : "";
       return text(
         `${m} ${url.pathname}${url.search}\nHTTP ${res.status} ${res.statusText} · ${elapsed}ms\n\n${pretty}${authNote}`
       );
@@ -211,19 +269,46 @@ export function register(server) {
         "라벨 없이 부르면 저장된 스냅샷 목록을 반환한다.",
       inputSchema: {
         label: z.string().optional().describe("스냅샷 이름 (예: v2.4.2, before-refactor)"),
+        pr: z.union([z.string(), z.number()]).optional().describe("이 배포를 만든 PR 번호"),
+        commit: z.string().optional().describe("배포된 커밋 SHA"),
+        title: z.string().optional().describe("무슨 작업이었는지 한 줄"),
       },
     },
-    async ({ label }) => {
+    async ({ label, pr, commit, title }) => {
       if (!label) {
-        const list = await listSnapshots();
-        return text(
-          list.length ? `저장된 스냅샷:\n\n${list.map((l) => `- ${l}`).join("\n")}` : "저장된 스냅샷이 없습니다."
-        );
+        const entries = await listEntries();
+        if (!entries.length) return text("저장된 스냅샷이 없습니다.");
+        const rows = entries
+          .slice()
+          .reverse()
+          .map((e) => `- ${e.label}  (${e.savedAt.slice(0, 16).replace("T", " ")})${e.pr ? ` PR #${e.pr}` : ""}${e.title ? ` ${e.title}` : ""}`);
+        return text(`저장된 스냅샷 ${entries.length}개:\n\n${rows.join("\n")}`);
       }
       const spec = await fetchSpec({ force: true });
-      const file = await saveSnapshot(label, spec);
+      const file = await saveSnapshot(label, spec, { pr, commit, title });
       const count = eachOperation(spec).length;
       return text(`스냅샷 '${label}' 저장 완료 (엔드포인트 ${count}개)\n${file}`);
+    }
+  );
+
+  tool(
+    "history",
+    {
+      title: "변경 이력",
+      description:
+        "배포 시점마다 찍힌 스냅샷을 이웃끼리 비교해 '언제 무엇이 바뀌었는지'를 시간순으로 보여준다. " +
+        "인자 없이 부르면 최근 배포 1건. 특정 기능만 보려면 tag, 특정 API만 보려면 path를 넣는다. " +
+        "'뭐 바뀌었어', '이 API 최근에 바뀐 적 있어' 같은 질문에는 diff_spec 말고 이걸 쓴다.",
+      inputSchema: {
+        since: z.string().optional().describe("이 시점 이후만. '3d', '2w', '12h' 또는 '2026-08-20'"),
+        tag: z.string().optional().describe("Swagger 태그(기능 단위)로 필터. 부분 일치 (예: 토픽룸)"),
+        path: z.string().optional().describe("엔드포인트 하나로 좁힐 때의 경로 템플릿"),
+        limit: z.number().optional().describe("since 없이 볼 때 되짚을 배포 수. 기본 1"),
+      },
+    },
+    async ({ since, tag, path, limit }) => {
+      const result = await collectHistory({ since, tag, path, limit }, fetchSpec);
+      return text(formatHistory(result, { since, tag, path }));
     }
   );
 

@@ -6,6 +6,7 @@ STORIX 내부 도구를 Claude에 붙이는 MCP 서버. 서버는 `storix` 하�
 | 모듈 | 하는 일 |
 |---|---|
 | `swagger` | dev 서버(`https://dev.storix.kr`)의 Swagger 스펙 조회·호출·버전 비교 |
+| `auth` | 관리자·테스터 계정으로 로그인해 API 호출에 쓸 토큰을 관리 (로컬 모드 전용) |
 
 빌드 단계 없이 Node로 바로 실행된다. Node 18+ 필요 (전역 `fetch` 사용).
 
@@ -22,10 +23,16 @@ src/
     swagger/
       index.js          register(server) — swagger_* 툴
       spec.js           스펙 조회·캐시·$ref 펼치기
-      diff.js           스냅샷·버전 비교
+      diff.js           두 스펙 비교
+      snapshots.js      스냅샷 저장·색인
+      history.js        배포 시점별 변경 이력
+      guide.js          슬래시 커맨드로 내려가는 사용 안내
+    auth/
+      index.js          register(server) — auth_* 툴
+      credentials.js    자격증명 파일과 .gitignore
 ```
 
-모듈을 추가하려면 `src/modules/<이름>/index.js`에 `NAMESPACE`와 `register(server)`를 내보내고
+모듈을 추가하려면 `src/modules/<이름>/index.js`에 `NAMESPACE`와 `register(server, { local })`를 내보내고
 `src/modules/index.js`에 한 줄 넣는다.
 
 ## 설치
@@ -53,13 +60,14 @@ claude mcp add storix --scope local \
 | `SWAGGER_BASE_URL` | `https://dev.storix.kr` | 대상 서버. 운영을 보려면 이 값만 바꾼다 |
 | `SWAGGER_SPEC_PATH` | `/v3/api-docs` | OpenAPI 문서 경로 |
 | `SWAGGER_USER` / `SWAGGER_PASSWORD` | (없음) | Swagger basic auth. `SecurityConfig`의 `swagger.user`/`swagger.password`와 같은 값 |
-| `STORIX_DEV_TOKEN` | (없음) | `swagger_call_api`가 Bearer로 붙일 JWT |
+| `STORIX_DEV_TOKEN` | (없음) | `swagger_call_api`가 Bearer로 붙일 JWT. `auth_login`을 쓰면 필요 없다 |
+| `STORIX_MCP_HOME` | 실행 디렉터리 | `.storix-mcp.json`을 둘 위치 |
 | `SWAGGER_MCP_ALLOW_WRITE` | (꺼짐) | `true`면 `swagger_call_api`가 POST/PUT/PATCH/DELETE도 보낸다 |
 | `MCP_PORT` | `8090` | HTTP 모드 포트. 3000은 프론트 dev 서버가 쓰므로 피했다 |
 | `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_USER`/`PASSWORD` 값 | HTTP 엔드포인트 basic auth 계정 |
 | `MCP_ALLOWED_ORIGINS` | (비어 있음) | 허용할 `Origin` 목록, 쉼표 구분. 비면 브라우저 출처를 전부 거절 |
 | `SWAGGER_CACHE_TTL_MS` | `60000` | 스펙 캐시 유효시간 |
-| `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | diff용 스냅샷 저장 위치 |
+| `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | 스냅샷 저장 위치. 컨테이너로 띄우면 볼륨으로 빼야 재배포에 살아남는다 |
 
 ## HTTP 모드 (프론트 배포용)
 
@@ -80,6 +88,32 @@ claude mcp add --transport http storix https://<주소>/mcp \
 - `Mcp-Session-Id`는 인증에 쓸 수 없다. 서버가 `initialize` 응답으로 발급하는 값이라
   누구나 요청만 하면 받아갈 수 있어서 관문이 되지 못한다. 세션은 상태 연속성용이지 자격증명이 아니다.
 
+## 툴 — auth 모듈
+
+로컬(stdio) 모드에서만 켜진다. 여러 사람이 쓰는 원격 모드에서는 한 사람의 자격증명으로
+모두가 호출하게 되므로 `auth_status`만 남고 나머지는 꺼진다.
+
+| 툴 | 쓸 때 |
+|---|---|
+| `auth_setup` | 계정을 `.storix-mcp.json`에 저장하고 `.gitignore`에 등록 |
+| `auth_login` | 저장된 계정으로 토큰 발급. 이후 `swagger_call_api`가 자동으로 씀 |
+| `auth_signup_tester` | 테스터 가입 요청 → pendingId 발급·저장 (슬랙 승인 필요) |
+| `auth_status` | 지금 누구로 로그인했는지, 토큰 얼마 남았는지 |
+| `auth_logout` | 토큰 폐기. 저장된 계정은 남음 |
+
+```
+admin   auth_setup {as: "admin", email, password}     → auth_login
+tester  auth_signup_tester {nickName, ...}            → 슬랙 승인 → auth_login
+        (이미 pendingId가 있으면 auth_setup {as: "tester", pendingId})
+```
+
+테스터의 `pendingId`는 승인 대기용 임시값이 아니라 **승인 후에도 계속 쓰는 로그인 키**다.
+승인되면 그대로 유저의 `oid`가 된다. 승인 기한 10분은 대기 레코드에만 걸린다.
+
+자격증명은 `.storix-mcp.json`(작업 중인 프로젝트 폴더)에, 발급받은 토큰은 프로세스 메모리에만 둔다.
+토큰은 디스크에 쓰지 않는다. `accessToken`이 만료되면 `refreshToken`으로 자동 재발급하고,
+재발급도 실패하면 세션을 버린다.
+
 ## 툴 — swagger 모듈
 
 | 툴 | 용도 |
@@ -87,10 +121,54 @@ claude mcp add --transport http storix https://<주소>/mcp \
 | `swagger_list_endpoints` | 엔드포인트 목록. `keyword`/`tag`/`method`로 필터 |
 | `swagger_get_endpoint` | 특정 API의 파라미터·요청·응답 스키마를 `$ref`까지 펼쳐서 반환 |
 | `swagger_get_schema` | `components.schemas`의 DTO 조회. 이름 생략 시 전체 목록 |
+| `swagger_errors` | 에러 코드만 추림. `code`로 역방향 조회, 인자 없으면 전체 목록 |
 | `swagger_call_api` | dev 서버에 실제 요청. 쓰기 메서드는 `SWAGGER_MCP_ALLOW_WRITE=true`일 때만 |
 | `swagger_snapshot_spec` | 현재 스펙을 라벨 붙여 저장. 라벨 생략 시 목록 |
+| `swagger_history` | 배포 시점별로 언제 뭐가 바뀌었는지. `tag`·`path`로 좁힘 |
 | `swagger_diff_spec` | 스냅샷 대비 변경 비교, 호환성 깨지는 변경을 따로 표시 |
 | `swagger_refresh_spec` | 캐시 버리고 재조회 (배포 직후) |
+
+## 에러 코드
+
+`swagger_get_endpoint`는 스키마까지 통째로 준다. 에러 분기만 짤 거면 `swagger_errors`가 짧다.
+같은 엔드포인트가 7,178자에서 1,033자가 된다.
+
+```
+이 API 에러 뭐 나와?        → swagger_errors {method, path}
+토픽룸 쪽 에러 전부         → swagger_errors {tag: "토픽룸"}
+이 코드 어디서 나와?        → swagger_errors {code: "USER_ERROR_007"}
+전체 목록                   → swagger_errors
+```
+
+인증 공통 에러는 개별 API 응답에 실리지 않고 `info.description`의 표에만 있다.
+`swagger_errors`는 그것도 같이 붙여서 준다.
+
+전체 목록(117개, 7천 자)은 **프론트 코드의 에러 분기와 대조**할 때 쓴다. 코드 대조를 MCP 툴로 만들지
+않은 건 원격 모드에서 서버가 클라이언트 파일을 못 읽기 때문이다. 목록은 MCP가 주고, grep은 에이전트가 한다.
+
+## 변경 이력
+
+배포마다 스냅샷을 찍어두면 `swagger_history`가 이웃 스냅샷을 비교해 "언제 무엇이 바뀌었는지"를 만든다.
+
+```
+뭐 바뀌었어?              → swagger_history            (최근 배포 1건)
+토픽룸 쪽 뭐 바뀌었어?     → swagger_history {tag}      (기능 단위)
+이 API 이력 좀            → swagger_history {path}     (엔드포인트 하나)
+지난주부터                → swagger_history {since: "1w"}
+```
+
+`tag`가 탐색축이다. 새로 생긴 엔드포인트는 경로를 모르니 `path`로는 찾을 수 없고,
+경로가 바뀐 경우도 태그로 묶어야 "제거 + 추가"가 나란히 보인다.
+
+스냅샷을 찍을 때 `pr`·`commit`·`title`을 같이 넣으면 이력에 근거로 따라붙는다.
+프론트가 PR 번호로 검색하는 게 아니라, 결과에서 출처를 보고 백엔드에 물어볼 실마리를 얻는 용도다.
+
+```
+8/22 14:03  PR #251 · 719c0d0 · 에러 스펙 추가
+  + POST /api/v1/topic-rooms/{roomId}/pin  새 엔드포인트
+  ~ POST /api/v1/topic-rooms
+      [breaking] 응답 200 result 타입 변경: integer → string
+```
 
 ## 릴리스 전 breaking change 점검
 

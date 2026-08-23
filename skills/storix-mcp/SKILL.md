@@ -64,7 +64,10 @@ claude mcp add storix --scope user \
 | `swagger_list_endpoints` | 어떤 API가 있는지 찾을 때. `keyword`/`tag`/`method` 필터 |
 | `swagger_get_endpoint` | 그 API의 요청·응답 스키마를 `$ref`까지 펼쳐서 볼 때 |
 | `swagger_get_schema` | DTO 하나를 이름으로 볼 때. 이름 생략하면 전체 목록 |
+| `swagger_errors` | 에러 코드만. 분기 짤 때 `get_endpoint`보다 7배 짧다 |
 | `swagger_call_api` | dev에 진짜 요청을 보낼 때 (③번 토큰 필요) |
+| `auth_login` | API를 실제로 호출하기 전에. 4번 참고 |
+| `swagger_history` | "뭐 바뀌었어?" 배포 시점별 변경 이력. `tag`/`path`로 좁힘 |
 | `swagger_snapshot_spec` | 지금 스펙을 라벨 붙여 저장. 라벨 생략하면 목록 |
 | `swagger_diff_spec` | 스냅샷 대비 뭐가 바뀌었는지, 호환성 깨지는 건 따로 |
 | `swagger_refresh_spec` | 배포 직후 최신 스펙이 안 보일 때 캐시 버리기 |
@@ -75,11 +78,24 @@ claude mcp add storix --scope user \
 
 찾기 → 상세 → 필요하면 호출. 스키마를 안 보고 `swagger_call_api`부터 부르지 마라. 바디 모양을 지어내게 된다.
 
-## 4. ③번 토큰이 필요할 때
+## 4. ③번 토큰 — auth 모듈
 
-`swagger_call_api`가 401을 주면 토큰이 없거나 만료된 것이다. MCP 자체에는 로그인 기능이 없다.
-`storix-local-test` 스킬의 테스터 pendingId 로그인으로 JWT를 받아서 **툴 인자 `token`으로 넘긴다.**
-매번 넘기기 번거로우면 사용자가 등록 env에 `STORIX_DEV_TOKEN`을 넣으면 되지만, JWT는 만료되므로 인자 쪽이 낫다.
+`swagger_call_api`가 401을 주면 로그인하면 된다. 계정은 한 번만 등록해두면 된다.
+
+```
+admin   auth_setup {as: "admin", email, password}   → auth_login {as: "admin"}
+tester  auth_signup_tester {nickName, favoriteGenreList}
+          → 슬랙에서 사람이 승인 (10분 안에)
+          → auth_login {as: "tester"}
+```
+
+계정은 작업 중인 프로젝트의 `.storix-mcp.json`에 저장되고 `.gitignore`에 자동 등록된다.
+토큰은 메모리에만 있고 만료되면 `refreshToken`으로 자동 재발급된다.
+
+**비밀번호를 파일에서 찾아 읽어 넣지 마라.** 사용자에게 받아서 `auth_setup`에 넘긴다.
+
+테스터의 `pendingId`는 승인 후에도 계속 쓰는 로그인 키다. 한 번 승인받으면 `auth_setup {as: "tester", pendingId}`로
+다른 컴퓨터에서도 바로 쓸 수 있다.
 
 ## 5. 릴리스 전 스펙 비교
 
