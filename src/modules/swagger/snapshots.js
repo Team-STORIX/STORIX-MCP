@@ -7,8 +7,12 @@ const SNAPSHOT_DIR =
 
 const INDEX_FILE = "index.json";
 
+// 파일명 상한은 보통 255바이트다. 한글은 한 글자가 3바이트라 금방 찬다
+const MAX_LABEL_BYTES = 120;
+
 function snapshotPath(label) {
-  const safe = label.replace(/[^a-zA-Z0-9._-]/g, "_");
+  let safe = label.replace(/[^a-zA-Z0-9._-]/g, "_");
+  while (Buffer.byteLength(safe, "utf8") > MAX_LABEL_BYTES) safe = safe.slice(0, -1);
   return path.join(SNAPSHOT_DIR, `${safe}.json`);
 }
 
