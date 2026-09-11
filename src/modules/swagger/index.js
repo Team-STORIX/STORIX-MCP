@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { text, fail, namespaced } from "../../shared/mcp.js";
 import { getSession, refreshSession, isExpired } from "../../shared/session.js";
+import { redact } from "../../shared/redact.js";
 import { config, fetchSpec, expand, eachOperation, findOperation } from "./spec.js";
 import { diffSpecs, formatDiff } from "./diff.js";
 import { saveSnapshot, loadSnapshot, listSnapshots, listEntries } from "./snapshots.js";
@@ -200,7 +201,19 @@ export function register(server) {
       const missing = filled.match(/\{[^}]+\}/g);
       if (missing) return fail(`경로 변수 ${missing.join(", ")} 가 안 채워졌습니다. pathParams로 넘기세요.`);
 
-      const url = new URL(filled.startsWith("http") ? filled : `${config.BASE_URL}${filled}`);
+      // 절대 URL 도 받지만 설정된 호스트로만 나간다. 아니면 토큰이 딸려서 아무 데나 갈 수 있다
+      let url;
+      try {
+        url = new URL(filled.startsWith("http") ? filled : `${config.BASE_URL}${filled}`);
+      } catch {
+        return fail(`경로를 URL 로 만들 수 없습니다: ${filled}`);
+      }
+      if (url.origin !== new URL(config.BASE_URL).origin) {
+        return fail(
+          `${url.origin} 으로는 보낼 수 없습니다. 이 도구는 ${new URL(config.BASE_URL).origin} 로만 요청합니다.\n` +
+            `요청에 인증 토큰이 함께 나가므로 대상 호스트를 고정해 뒀습니다.`
+        );
+      }
       for (const [k, v] of Object.entries(query || {})) url.searchParams.set(k, String(v));
 
       // 인자로 준 토큰이 우선. 없으면 auth_login으로 받아둔 세션, 그것도 없으면 환경변수.
@@ -244,6 +257,7 @@ export function register(server) {
       } catch {
         // JSON이 아니면 원문 그대로
       }
+      pretty = redact(pretty);
 
       const authNote = !bearerOf()
         ? res.status === 401

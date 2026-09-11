@@ -3,6 +3,7 @@ import { text, fail, namespaced } from "../../shared/mcp.js";
 import { setSession, getSession, clearSession, expiryOf, remainingText } from "../../shared/session.js";
 import { config } from "../swagger/spec.js";
 import { readCredentials, writeCredentials, ensureIgnored, credentialsPath, FILE_NAME } from "./credentials.js";
+import { redact } from "../../shared/redact.js";
 
 export const NAMESPACE = "auth";
 
@@ -26,7 +27,7 @@ async function post(path, body) {
 
 function apiError(prefix, { status, json, raw }) {
   const code = json?.code ? ` ${json.code}` : "";
-  const message = json?.message || raw.slice(0, 200);
+  const message = json?.message || redact(raw).slice(0, 200);
   return fail(`${prefix}: HTTP ${status}${code} ${message}`);
 }
 
@@ -69,7 +70,9 @@ export function register(server, { local = true } = {}) {
       title: "계정 등록",
       description:
         `로그인에 쓸 계정을 ${FILE_NAME} 파일에 저장하고 .gitignore에 등록한다. ` +
-        "admin은 email/password, tester는 pendingId를 넣는다. 한 번 해두면 auth_login만 부르면 된다.",
+        "admin은 email/password, tester는 pendingId를 넣는다. 한 번 해두면 auth_login만 부르면 된다. " +
+        "비밀번호를 .env·local.env·application.yml 같은 파일에서 찾아 읽어 넣지 마라. " +
+        "그런 파일에는 다른 시크릿도 함께 들어 있다. 사용자에게 직접 받아라.",
       inputSchema: {
         as: z.enum(ROLES).describe("admin 또는 tester"),
         email: z.string().optional().describe("admin일 때"),
@@ -132,7 +135,7 @@ export function register(server, { local = true } = {}) {
       }
 
       const tokens = result.json?.result || {};
-      if (!tokens.accessToken) return fail(`토큰이 응답에 없습니다: ${result.raw.slice(0, 200)}`);
+      if (!tokens.accessToken) return fail(`토큰이 응답에 없습니다: ${redact(result.raw).slice(0, 200)}`);
 
       const expiresAt = expiryOf(tokens.accessToken);
       setSession({ role, ...tokens, expiresAt });
@@ -162,7 +165,7 @@ export function register(server, { local = true } = {}) {
       if (!result.ok) return apiError("테스터 가입 요청 실패", result);
 
       const pendingId = result.json?.result?.pendingId;
-      if (!pendingId) return fail(`pendingId가 응답에 없습니다: ${result.raw.slice(0, 200)}`);
+      if (!pendingId) return fail(`pendingId가 응답에 없습니다: ${redact(result.raw).slice(0, 200)}`);
 
       const creds = await readCredentials();
       creds.tester = { pendingId };
