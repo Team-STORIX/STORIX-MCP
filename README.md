@@ -15,6 +15,8 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 | `report` | 어긋난 곳 판정, 슬랙 제보 | 예 |
 | `metrics` | 미리 정의한 집계 질의 | 예 |
 | `auth` | 관리자·테스터 로그인, 토큰 관리 | **아니오, 로컬 전용** |
+| `flow` | 사용자 흐름 시나리오를 API 로 돌리고 판정 | 예 |
+| `mobile` | 앱 화면 띄우기, Maestro 안내 | **아니오, 로컬 전용** |
 
 빌드 단계가 없다. Node 18+ 만 있으면 된다.
 
@@ -96,6 +98,20 @@ claude mcp add --transport http storix https://<주소>/mcp \
 | `STORIX_DB_USER` / `STORIX_DB_PASSWORD` | (없음) | **읽기 전용 계정만 쓸 것** |
 | `STORIX_DB_NAME` | (없음) | 스키마 이름 |
 | `STORIX_DB_TIMEOUT_MS` | `5000` | 이 시간을 넘는 질의는 서버가 죽인다 |
+
+**flow**
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `STORIX_FLOWS_DIR` | 저장소의 `flows/` | 시나리오를 둘 위치 |
+
+**mobile (로컬 전용)**
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `STORIX_APP_SCHEME` | `storixfe21` | 딥링크 스킴. FE 의 `app.json` 과 같아야 한다 |
+| `STORIX_APP_IOS_BUNDLE_ID` | `kr.storix.app` | 시뮬레이터에 앱이 깔렸는지 볼 때 쓴다 |
+| `STORIX_APP_ANDROID_PACKAGE` | `kr.storix.android` | 위와 같다 |
 
 **HTTP 모드**
 
@@ -254,6 +270,31 @@ event_rate     이벤트별 참여율
 연결은 읽기 전용 세션·5초 타임아웃·락 대기 2초·조회 기간 180일 상한으로 묶여 있다.
 **dev 와 운영이 같은 인스턴스를 스키마로만 나눠 쓰기 때문이다.** 여기 날린 질의가
 운영 자원을 쓴다.
+
+---
+
+### 앱 흐름 돌려보기
+
+사용자 흐름 한 벌을 `flows/<이름>.md` 에 적어두고, 같은 파일을 두 가지로 쓴다.
+설명은 사람이 읽고 실행기는 yaml 블록만 본다. `api` 는 `flow` 가, `route` 는 `mobile` 이 쓴다.
+
+    flow_list                     어떤 시나리오가 있나
+    flow_check {name}             호출 없이 경로가 아직 스펙에 있는지만
+    flow_run {name}               실제로 호출하고 스펙과 대조해 판정
+    mobile_doctor                 지금 환경에서 어디까지 되나
+    mobile_open {route}           앱에서 그 화면 띄우기
+
+`flow_run` 은 `auth_login` 으로 받아둔 토큰을 쓴다. 앞 스텝에서 뽑은 값을 다음 스텝에 넣으므로
+한 스텝이 실패하면 거기서 멈춘다. 쓰기 스텝은 `SWAGGER_MCP_ALLOW_WRITE` 가 꺼져 있으면 건너뛴다.
+
+판정은 상태 코드, `has` 로 적은 필드가 있는지, 그리고 응답 최상위를 스펙과 대조해서 한다.
+스펙의 필수 필드가 빠졌으면 실패, 스펙에 없는 필드가 오면 참고로만 적는다.
+
+`mobile_open` 은 화면을 띄우기만 하고 버튼을 누르지는 못한다. 눌러야 하는 구간은 Maestro 를 쓴다.
+Maestro 가 없어도 나머지는 그대로 된다. 자세한 건 `mobile` 프롬프트에 있다.
+
+**앱을 띄우면 앱이 스스로 dev API 를 부른다.** 우리가 고른 요청만 나가는 게 아니라
+analytics, 푸시 기기 등록, 미리 받아두기까지 따라 나가고 dev 데이터가 실제로 쌓인다.
 
 ---
 
