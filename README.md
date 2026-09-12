@@ -67,6 +67,8 @@ claude mcp add storix --scope local \
 | `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_*` 값 | HTTP 엔드포인트 basic auth 계정 |
 | `MCP_ALLOWED_ORIGINS` | (비어 있음) | 허용할 `Origin` 목록, 쉼표 구분. 비면 브라우저 출처를 전부 거절 |
 | `SWAGGER_CACHE_TTL_MS` | `60000` | 스펙 캐시 유효시간 |
+| `SWAGGER_SNAPSHOT_S3_BUCKET` | (없음) | 있으면 스냅샷을 S3 에 둔다. Lambda 가 쓴다 |
+| `SWAGGER_SNAPSHOT_S3_PREFIX` | `swagger-snapshots` | 그 버킷 안에서 쓸 경로 |
 | `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | 스냅샷 저장 위치. 컨테이너로 띄우면 볼륨으로 빼야 재배포에 살아남는다 |
 
 ## HTTP 모드 (프론트 배포용)
@@ -90,7 +92,7 @@ claude mcp add --transport http storix https://<주소>/mcp \
 
 ### 배포마다 스펙 변경 알리기
 
-CD 에서 부를 수 있게 CLI 진입점을 따로 뒀다. MCP 서버와 같은 모듈을 쓰므로 판정이 갈라지지 않는다.
+CD 에서 부를 수 있게 진입점을 둘 뒀다. MCP 서버와 같은 모듈을 쓰므로 판정이 갈라지지 않는다.
 
     node src/cli.js snapshot  --label v2.4.2
     node src/cli.js changelog --label "dev-abc1234" --commit "$SHA"
@@ -102,9 +104,29 @@ CD 에서 부를 수 있게 CLI 진입점을 따로 뒀다. MCP 서버와 같은
 기본은 알리기만 하고 종료코드 0 으로 끝난다. dev 는 배포가 잦아 breaking 마다 실패시키면
 금방 무시하게 되기 때문이다. 막고 싶으면 `--fail-on-breaking` 을 붙인다.
 
-배포 때만 잠깐 뜨는 일회성 컨테이너로 돌리는 것을 전제로 한다. 상주시키지 않으므로
-평상시 메모리 점유가 없다. **스냅샷 디렉터리는 반드시 볼륨으로 빼라.** 안 그러면 매번 날아가
-직전 배포와 비교할 수가 없다.
+배포 파이프라인에서는 같은 일을 Lambda(`src/lambda.js`)가 한다. dev EC2 를 더 줄일 계획이라
+그 서버의 메모리를 잠깐이라도 쓰지 않게 떼어냈다. **VPC 밖에 두므로 NAT 도 EIP 도 필요 없다.**
+
+    aws lambda invoke --function-name storix-spec-changelog \
+      --payload '{"label":"dev-abc1234","commit":"<sha>"}' /dev/null
+
+Lambda 는 호출 주소가 따로 생기지 않는다. `lambda:InvokeFunction` 권한을 가진 주체만 부를 수 있고,
+배포 역할 하나로 좁혀 둔다. **Function URL 은 만들지 않는다** — 만드는 순간 공개 엔드포인트가 된다.
+리소스를 만드는 명령은 `scripts/aws-setup.sh` 에 모아 뒀다.
+
+### 스냅샷을 어디에 두나
+
+바이트를 읽고 쓰는 부분만 백엔드로 갈라 뒀다. 라벨 규칙과 색인 병합은 그대로다.
+
+| 백엔드 | 언제 | 고르는 법 |
+|---|---|---|
+| `fs` | 로컬, 그리고 나중에 EFS 를 붙일 때 | 기본값 |
+| `s3` | Lambda | `SWAGGER_SNAPSHOT_S3_BUCKET` 이 있으면 |
+
+EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWAGGER_SNAPSHOT_DIR` 만 바꾸면 된다.
+S3 클라이언트는 Lambda 런타임에 들어 있어 의존성으로 넣지 않았고, `s3` 를 고를 때만 불러온다.
+
+**스냅샷이 사라지면 직전 배포와 비교할 수가 없다.** 컨테이너로 띄운다면 반드시 볼륨으로 빼라.
 
 ---
 
