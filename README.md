@@ -64,7 +64,7 @@ claude mcp add storix --scope local \
 | `STORIX_MCP_HOME` | 실행 디렉터리 | `.storix-mcp.json`을 둘 위치 |
 | `SWAGGER_MCP_ALLOW_WRITE` | (꺼짐) | `true`면 `swagger_call_api`가 POST/PUT/PATCH/DELETE도 보낸다 |
 | `MCP_PORT` | `8090` | HTTP 모드 포트. 3000은 프론트 dev 서버가 쓰므로 피했다 |
-| `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_USER`/`PASSWORD` 값 | HTTP 엔드포인트 basic auth 계정 |
+| `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_*` 값 | HTTP 엔드포인트 basic auth 계정 |
 | `MCP_ALLOWED_ORIGINS` | (비어 있음) | 허용할 `Origin` 목록, 쉼표 구분. 비면 브라우저 출처를 전부 거절 |
 | `SWAGGER_CACHE_TTL_MS` | `60000` | 스펙 캐시 유효시간 |
 | `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | 스냅샷 저장 위치. 컨테이너로 띄우면 볼륨으로 빼야 재배포에 살아남는다 |
