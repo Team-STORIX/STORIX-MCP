@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { text, fail, namespaced } from "../../shared/mcp.js";
 import { setSession, getSession, clearSession, expiryOf, remainingText } from "../../shared/session.js";
-import { config } from "../swagger/spec.js";
+import { BASE_URL } from "../../shared/config.js";
 import { readCredentials, writeCredentials, ensureIgnored, credentialsPath, FILE_NAME } from "./credentials.js";
 import { redact } from "../../shared/redact.js";
 
@@ -10,7 +10,7 @@ export const NAMESPACE = "auth";
 const ROLES = ["admin", "tester"];
 
 async function post(path, body) {
-  const res = await fetch(`${config.BASE_URL}${path}`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(body),
