@@ -87,15 +87,18 @@ export function buildSlackMessage(data) {
   });
 }
 
+// 문자열이면 그대로 text 로, 객체면 payload 로 본다.
 export async function send(message) {
   if (!WEBHOOK) return { sent: false, reason: "webhook 미설정" };
+
+  const payload = typeof message === "string" ? { text: message } : message;
 
   let res;
   try {
     res = await fetch(WEBHOOK, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: message }),
+      body: JSON.stringify(payload),
     });
   } catch (e) {
     return { sent: false, reason: `전송 실패: ${e.message}` };
