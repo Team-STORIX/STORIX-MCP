@@ -296,6 +296,44 @@ Maestro 가 없어도 나머지는 그대로 된다. 자세한 건 `mobile` 프�
 **앱을 띄우면 앱이 스스로 dev API 를 부른다.** 우리가 고른 요청만 나가는 게 아니라
 analytics, 푸시 기기 등록, 미리 받아두기까지 따라 나가고 dev 데이터가 실제로 쌓인다.
 
+### 배포마다 스펙 변경 알리기
+
+CD 에서 부를 수 있게 진입점을 둘 뒀다. MCP 서버와 같은 모듈을 쓰므로 판정이 갈라지지 않는다.
+
+    node src/cli.js snapshot  --label v2.4.2
+    node src/cli.js changelog --label "dev-abc1234" --commit "$SHA"
+
+`changelog` 는 지금 스펙을 뜨고 **직전 스냅샷과 비교해** 변경 내역을 출력한다.
+`STORIX_SLACK_WEBHOOK_URL` 이 있으면 슬랙으로도 보낸다. 첫 실행이라 비교 대상이 없으면
+기준점만 잡고 끝낸다.
+
+기본은 알리기만 하고 종료코드 0 으로 끝난다. dev 는 배포가 잦아 breaking 마다 실패시키면
+금방 무시하게 되기 때문이다. 막고 싶으면 `--fail-on-breaking` 을 붙인다.
+
+배포 파이프라인에서는 같은 일을 Lambda(`src/lambda.js`)가 한다. dev EC2 를 더 줄일 계획이라
+그 서버의 메모리를 잠깐이라도 쓰지 않게 떼어냈다. **VPC 밖에 두므로 NAT 도 EIP 도 필요 없다.**
+
+    aws lambda invoke --function-name storix-spec-changelog \
+      --payload '{"label":"dev-abc1234","commit":"<sha>"}' /dev/null
+
+Lambda 는 호출 주소가 따로 생기지 않는다. `lambda:InvokeFunction` 권한을 가진 주체만 부를 수 있고,
+배포 역할 하나로 좁혀 둔다. **Function URL 은 만들지 않는다** — 만드는 순간 공개 엔드포인트가 된다.
+리소스를 만드는 명령은 `scripts/aws-setup.sh` 에 모아 뒀다.
+
+### 스냅샷을 어디에 두나
+
+바이트를 읽고 쓰는 부분만 백엔드로 갈라 뒀다. 라벨 규칙과 색인 병합은 그대로다.
+
+| 백엔드 | 언제 | 고르는 법 |
+|---|---|---|
+| `fs` | 로컬, 그리고 나중에 EFS 를 붙일 때 | 기본값 |
+| `s3` | Lambda | `SWAGGER_SNAPSHOT_S3_BUCKET` 이 있으면 |
+
+EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWAGGER_SNAPSHOT_DIR` 만 바꾸면 된다.
+S3 클라이언트는 Lambda 런타임에 들어 있어 의존성으로 넣지 않았고, `s3` 를 고를 때만 불러온다.
+
+**스냅샷이 사라지면 직전 배포와 비교할 수가 없다.** 컨테이너로 띄운다면 반드시 볼륨으로 빼라.
+
 ---
 
 ## 툴
