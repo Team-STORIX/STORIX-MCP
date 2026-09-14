@@ -30,7 +30,8 @@ jobs:
 
       - name: zip 만들기
         run: |
-          zip -rq lambda.zip src node_modules \
+          # package.json 이 있어야 "type": "module" 이 적용돼 ESM 으로 읽힌다
+          zip -rq lambda.zip package.json src node_modules \
             -x 'src/http.js' 'src/index.js' 'src/server.js' 'src/modules/index.js'
           unzip -l lambda.zip | tail -1
 
