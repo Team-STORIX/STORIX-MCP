@@ -29,7 +29,7 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 패키지로 받아 쓰는 게 가장 간단하다. 클론도 설치도 필요 없다.
 
 ```bash
-claude mcp add storix -- npx -y storix-mcp@latest
+claude mcp add storix -- npx -y @team-storix/storix-mcp@latest
 ```
 
 자격증명은 각자 넣는다. `SWAGGER_USER` 를 넣거나, AWS 프로필만 주고 Parameter Store 에서 읽게 한다.
