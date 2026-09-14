@@ -15,15 +15,27 @@ function parseDate(value, fallback) {
 
 const iso = (d) => new Date(d.getTime() + 9 * 3600_000).toISOString().slice(0, 19).replace("T", " ");
 
-// 결과를 표로 그린다. 프론트도 기획도 터미널에서 읽으므로 마크업을 쓰지 않는다
+const MAX_ROWS = 200;
+
+// 결과를 표로 그린다. 프론트도 기획도 터미널에서 읽으므로 마크업을 쓰지 않는다.
+// 180일치를 부르면 수천 행이 나올 수 있어 화면에서는 잘라 보여준다. 집계라 조회 자체는 가볍다
 function table(rows) {
   if (!rows.length) return "  (해당 기간에 데이터가 없습니다)";
+  const shown = rows.slice(0, MAX_ROWS);
   const cols = Object.keys(rows[0]);
   const width = Object.fromEntries(
-    cols.map((c) => [c, Math.max(String(c).length, ...rows.map((r) => String(r[c] ?? "").length))])
+    cols.map((c) => [c, Math.max(String(c).length, ...shown.map((r) => String(r[c] ?? "").length))])
   );
   const line = (cells) => "  " + cols.map((c, i) => String(cells[i] ?? "").padEnd(width[c])).join("  ");
-  return [line(cols), "  " + cols.map((c) => "─".repeat(width[c])).join("  "), ...rows.map((r) => line(cols.map((c) => r[c])))].join("\n");
+  const out = [
+    line(cols),
+    "  " + cols.map((c) => "─".repeat(width[c])).join("  "),
+    ...shown.map((r) => line(cols.map((c) => r[c]))),
+  ];
+  if (rows.length > MAX_ROWS) {
+    out.push(`  … 전체 ${rows.length}행 중 ${MAX_ROWS}행만 보여줍니다. 기간을 좁히세요.`);
+  }
+  return out.join("\n");
 }
 
 export function register(server) {
