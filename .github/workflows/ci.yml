@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: 구문 검사와 기동 확인
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: 구문 검사
+        run: |
+          find src smoke-http.mjs -name '*.js' -o -name '*.mjs' | while read -r f; do
+            node --check "$f" || exit 1
+          done
+
+      # 실제로 서버를 띄워 툴과 프롬프트가 등록되는지 본다.
+      # 모듈 하나가 깨지면 등록 단계에서 죽으므로 여기서 잡힌다.
+      - name: 기동 확인
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            '{"jsonrpc":"2.0","id":3,"method":"prompts/list"}' \
+            | node src/index.js > out.json
+
+          node -e '
+            const lines = require("fs").readFileSync("out.json", "utf8").trim().split("\n");
+            const byId = Object.fromEntries(
+              lines.map((l) => JSON.parse(l)).filter((m) => m.id).map((m) => [m.id, m])
+            );
+            const tools = byId[2]?.result?.tools ?? [];
+            const prompts = byId[3]?.result?.prompts ?? [];
+            console.log(`툴 ${tools.length}개 · 프롬프트 ${prompts.length}개`);
+            if (!tools.length) { console.error("툴이 하나도 등록되지 않았습니다"); process.exit(1); }
+            if (!prompts.length) { console.error("프롬프트가 등록되지 않았습니다"); process.exit(1); }
+            const bad = tools.filter((t) => !/^(swagger|auth|report|metrics|mobile|flow)_/.test(t.name));
+            if (bad.length) { console.error("모듈 접두사가 없는 툴: " + bad.map((t) => t.name).join(", ")); process.exit(1); }
+          '
+
+      # 문서에 적힌 환경변수가 코드에 실제로 있는지 본다. 문서만 있는 변수는 거짓말이 된다
+      - name: 문서와 환경변수 대조
+        run: |
+          grep -rhoE 'process\.env\.[A-Z_]+' src/ | sed 's/process\.env\.//' | sort -u > /tmp/code.txt
+          grep -oE '`[A-Z][A-Z_]{4,}`' README.md | tr -d '`' | sort -u > /tmp/doc.txt
+          missing=$(comm -13 /tmp/code.txt /tmp/doc.txt | grep -v '^NAMESPACE$' || true)
+          if [ -n "$missing" ]; then
+            echo "README 에만 있고 코드에는 없는 환경변수:"
+            echo "$missing"
+            exit 1
+          fi
+          echo "환경변수 $(wc -l < /tmp/code.txt)개 일치"
