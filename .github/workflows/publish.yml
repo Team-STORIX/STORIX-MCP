@@ -1,0 +1,41 @@
+name: npm 배포
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: npm 에 올리기
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci --omit=dev
+
+      # 올리기 전에 실제로 뜨는지 본다. 깨진 패키지가 나가면 되돌리기 번거롭다.
+      - name: 기동 확인
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | node src/index.js > out.json
+          node -e 'const l=require("fs").readFileSync("out.json","utf8").trim().split("\n").map(JSON.parse);
+                   const t=l.find(m=>m.id===2)?.result?.tools||[];
+                   if(!t.length){console.error("툴이 없습니다");process.exit(1)}
+                   console.log("툴",t.length,"개")'
+
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
