@@ -19,10 +19,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # CLI·핸들러가 쓰는 파일에는 외부 패키지가 없다. src 만 담으면 된다.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 런타임에 어떤 SDK 가 번들돼 있는지는 버전마다 다르다. 직접 담아 그 의존을 없앤다.
+      # 노트북에서 쓰는 쪽은 fs 백엔드라 client-s3 가 필요 없어 package.json 에는 넣지 않는다.
+      - name: SDK 설치
+        run: npm install --no-save --omit=dev @aws-sdk/client-s3 @aws-sdk/client-ssm
+
       - name: zip 만들기
         run: |
-          zip -r lambda.zip src -x 'src/http.js' 'src/index.js' 'src/server.js' 'src/modules/index.js'
+          zip -rq lambda.zip src node_modules \
+            -x 'src/http.js' 'src/index.js' 'src/server.js' 'src/modules/index.js'
           unzip -l lambda.zip | tail -1
 
       - uses: actions/upload-artifact@v4
