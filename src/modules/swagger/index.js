@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { text, fail, namespaced } from "../../shared/mcp.js";
-import { getSession, refreshSession, isExpired } from "../../shared/session.js";
-import { config, fetchSpec, expand, eachOperation, findOperation } from "./spec.js";
+import { callApi } from "../../shared/api.js";
+import { fetchSpec, expand, eachOperation, findOperation } from "./spec.js";
 import { diffSpecs, formatDiff } from "./diff.js";
 import { saveSnapshot, loadSnapshot, listSnapshots, listEntries } from "./snapshots.js";
 import { collectHistory, formatHistory } from "./history.js";
@@ -9,12 +9,6 @@ import { GUIDE } from "./guide.js";
 import { collectErrors, commonErrors, renderForOperation, renderByCode, renderList } from "./errors.js";
 
 export const NAMESPACE = "swagger";
-
-const DEV_TOKEN = process.env.STORIX_DEV_TOKEN || "";
-const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-
-// 쓰기 허용은 사람이 MCP 설정에서 켜야 한다. AI가 인자로 열 수 있으면 관문이 아니다.
-const WRITE_ENABLED = process.env.SWAGGER_MCP_ALLOW_WRITE === "true";
 
 function summarize({ method, path, op }) {
   const tags = op.tags?.length ? ` [${op.tags.join(", ")}]` : "";
@@ -183,79 +177,21 @@ export function register(server) {
         token: z.string().optional().describe("이 호출에만 쓸 JWT. 없으면 STORIX_DEV_TOKEN 사용"),
       },
     },
-    async ({ method, path, pathParams, query, body, headers, token }) => {
-      const m = method.toUpperCase();
-      if (WRITE_METHODS.has(m) && !WRITE_ENABLED) {
-        return fail(
-          `${m}은 dev 데이터를 변경하므로 이 서버에서 막혀 있습니다.\n\n` +
-            `허용하려면 사용자가 MCP 설정에 SWAGGER_MCP_ALLOW_WRITE=true 를 넣고 재시작해야 합니다. ` +
-            `이 도구의 인자로는 켤 수 없습니다.`
-        );
-      }
+    async (args) => {
+      const r = await callApi(args);
+      if (r.error) return fail(r.error);
 
-      let filled = path;
-      for (const [k, v] of Object.entries(pathParams || {})) {
-        filled = filled.replaceAll(`{${k}}`, encodeURIComponent(String(v)));
-      }
-      const missing = filled.match(/\{[^}]+\}/g);
-      if (missing) return fail(`경로 변수 ${missing.join(", ")} 가 안 채워졌습니다. pathParams로 넘기세요.`);
-
-      const url = new URL(filled.startsWith("http") ? filled : `${config.BASE_URL}${filled}`);
-      for (const [k, v] of Object.entries(query || {})) url.searchParams.set(k, String(v));
-
-      // 인자로 준 토큰이 우선. 없으면 auth_login으로 받아둔 세션, 그것도 없으면 환경변수.
-      const useSession = !token && Boolean(getSession());
-      if (useSession && isExpired()) await refreshSession(config.BASE_URL);
-
-      const bearerOf = () => token || getSession()?.accessToken || DEV_TOKEN;
-      const reqHeaders = { Accept: "application/json", ...(headers || {}) };
-      if (body !== undefined) reqHeaders["Content-Type"] = "application/json";
-
-      const send = async () => {
-        const bearer = bearerOf();
-        const h = { ...reqHeaders };
-        if (bearer) h.Authorization = `Bearer ${bearer}`;
-        return fetch(url, {
-          method: m,
-          headers: h,
-          body: body === undefined ? undefined : JSON.stringify(body),
-        });
-      };
-
-      const started = Date.now();
-      let res;
-      let refreshed = false;
-      try {
-        res = await send();
-        // 만료를 미리 못 잡는 경우가 있다. 401이면 한 번만 다시 받아서 재시도한다.
-        if (res.status === 401 && useSession && (await refreshSession(config.BASE_URL))) {
-          refreshed = true;
-          res = await send();
-        }
-      } catch (e) {
-        return fail(`요청 실패: ${e.message}`);
-      }
-      const elapsed = Date.now() - started;
-
-      const raw = await res.text();
-      let pretty = raw;
-      try {
-        pretty = JSON.stringify(JSON.parse(raw), null, 2);
-      } catch {
-        // JSON이 아니면 원문 그대로
-      }
-
-      const authNote = !bearerOf()
-        ? res.status === 401
+      const authNote = !r.hadToken
+        ? r.status === 401
           ? "\n\n(토큰이 없습니다. auth_login으로 로그인하거나 token 인자로 넘기세요.)"
           : ""
-        : res.status === 401 && useSession
+        : r.status === 401 && r.usedSession
           ? "\n\n(토큰을 다시 받아 재시도했는데도 401입니다. auth_login으로 다시 로그인하세요.)"
-          : refreshed
+          : r.refreshed
             ? "\n\n(만료된 토큰을 재발급해 다시 보냈습니다.)"
             : "";
       return text(
-        `${m} ${url.pathname}${url.search}\nHTTP ${res.status} ${res.statusText} · ${elapsed}ms\n\n${pretty}${authNote}`
+        `${r.method} ${r.url.pathname}${r.url.search}\nHTTP ${r.status} ${r.statusText} · ${r.elapsed}ms\n\n${r.pretty}${authNote}`
       );
     }
   );

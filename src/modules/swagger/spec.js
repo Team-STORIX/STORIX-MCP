@@ -1,4 +1,5 @@
-const BASE_URL = (process.env.SWAGGER_BASE_URL || "https://dev.storix.kr").replace(/\/$/, "");
+import { BASE_URL } from "../../shared/config.js";
+
 const SPEC_PATH = process.env.SWAGGER_SPEC_PATH || "/v3/api-docs";
 const TTL_MS = Number(process.env.SWAGGER_CACHE_TTL_MS || 60_000);
 
