@@ -2,7 +2,14 @@ import { store, backendName } from "../../shared/store/index.js";
 
 const INDEX_FILE = "index.json";
 
-const keyOf = (label) => `${label.replace(/[^a-zA-Z0-9._-]/g, "_")}.json`;
+// 파일명 상한은 보통 255바이트다. 한글은 한 글자가 3바이트라 금방 찬다
+const MAX_LABEL_BYTES = 120;
+
+function keyOf(label) {
+  let safe = label.replace(/[^a-zA-Z0-9._-]/g, "_");
+  while (Buffer.byteLength(safe, "utf8") > MAX_LABEL_BYTES) safe = safe.slice(0, -1);
+  return `${safe}.json`;
+}
 
 async function readIndex() {
   const raw = await (await store()).read(INDEX_FILE);
