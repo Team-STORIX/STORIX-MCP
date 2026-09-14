@@ -28,6 +28,8 @@ aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name snapshots-only \
     \"Statement\":[
       {\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\"],
        \"Resource\":\"arn:aws:s3:::${BUCKET}/${PREFIX}/*\"},
+      {\"Effect\":\"Allow\",\"Action\":\"ssm:GetParameters\",
+       \"Resource\":\"arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/storix/dev/swagger/*\"},
       {\"Effect\":\"Allow\",\"Action\":\"s3:ListBucket\",
        \"Resource\":\"arn:aws:s3:::${BUCKET}\",
        \"Condition\":{\"StringLike\":{\"s3:prefix\":\"${PREFIX}/*\"}}}
@@ -36,13 +38,11 @@ aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name snapshots-only \
 
 echo "== 함수 만들기 (zip 은 워크플로 아티팩트에서 받아둔다)"
 aws lambda create-function --function-name "$FUNCTION" --region "$REGION" \
-  --runtime nodejs22.x --handler src/lambda.handler \
+  --runtime nodejs24.x --handler src/lambda.handler \
   --role "arn:aws:iam::${ACCOUNT}:role/${ROLE_NAME}" \
   --timeout 60 --memory-size 512 \
   --zip-file fileb://lambda.zip \
   --environment "Variables={
-    SWAGGER_USER=$SWAGGER_USER,
-    SWAGGER_PASSWORD=$SWAGGER_PASSWORD,
     SWAGGER_SNAPSHOT_S3_BUCKET=${BUCKET},
     SWAGGER_SNAPSHOT_S3_PREFIX=${PREFIX},
     STORIX_SLACK_WEBHOOK_URL=$STORIX_SLACK_WEBHOOK_URL
