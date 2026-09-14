@@ -1,4 +1,5 @@
-const BASE_URL = (process.env.SWAGGER_BASE_URL || "https://dev.storix.kr").replace(/\/$/, "");
+import { BASE_URL } from "../../shared/config.js";
+
 const SPEC_PATH = process.env.SWAGGER_SPEC_PATH || "/v3/api-docs";
 const SWAGGER_USER = process.env.SWAGGER_USER || "";
 const SWAGGER_PASSWORD = process.env.SWAGGER_PASSWORD || "";
