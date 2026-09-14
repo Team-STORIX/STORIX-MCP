@@ -1,11 +1,24 @@
 {
   "name": "storix-mcp",
   "version": "1.0.0",
-  "private": true,
+  "description": "STORIX 개발에 쓰는 도구들을 Claude 에 붙이는 MCP 서버",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Team-STORIX/STORIX-MCP.git"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "bin": {
     "storix-mcp": "src/index.js"
   },
+  "files": [
+    "src",
+    "flows",
+    "skills"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "mysql2": "^3.23.4",

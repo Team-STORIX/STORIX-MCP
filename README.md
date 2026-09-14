@@ -26,6 +26,18 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 
 ### 로컬 — 개발자
 
+패키지로 받아 쓰는 게 가장 간단하다. 클론도 설치도 필요 없다.
+
+```bash
+claude mcp add storix -- npx -y storix-mcp@latest
+```
+
+자격증명은 각자 넣는다. `SWAGGER_USER` 를 넣거나, AWS 프로필만 주고 Parameter Store 에서 읽게 한다.
+
+```jsonc
+{ "env": { "AWS_PROFILE": "storix" } }
+```
+
 저장소를 받아서 각자 등록한다. 로컬 모드에서는 모든 모듈이 켜진다.
 
 ```bash
