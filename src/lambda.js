@@ -3,6 +3,7 @@ import { fetchSpec } from "./modules/swagger/spec.js";
 import { saveSnapshot, loadSnapshot, listEntries } from "./modules/swagger/snapshots.js";
 import { diffSpecs, formatChangelog } from "./modules/swagger/diff.js";
 import { send, configured as slackConfigured } from "./modules/report/slack.js";
+import { buildChangelogPayload } from "./modules/swagger/changelog-slack.js";
 
 const stamp = () => new Date().toISOString().slice(0, 16).replace("T", " ");
 const defaultLabel = () => `dev-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
@@ -25,14 +26,26 @@ export async function handler(event = {}) {
   const report = formatChangelog(before, spec, { ...meta, title: meta.title || `${previous.label} → ${label}` });
   console.log(report);
 
-  let slack = "미설정";
-  if (slackConfigured && !event.noSlack) {
-    const result = await send(report);
-    slack = result.sent ? "보냄" : `실패: ${result.reason}`;
-  }
-
   const { added, removed, changed } = diffSpecs(before, spec);
   const needsWork = removed.length + changed.filter((c) => c.breaking.length).length;
+  const soft = changed.filter((c) => !c.breaking.length).length;
+
+  let slack = "미설정";
+  if (slackConfigured && !event.noSlack) {
+    const payload = buildChangelogPayload({
+      env: meta.env,
+      sha: meta.sha,
+      pr: meta.pr,
+      from: previous.label,
+      to: label,
+      needsWork,
+      added: added.length,
+      soft,
+      detail: report,
+    });
+    const result = await send(payload);
+    slack = result.sent ? "보냄" : `실패: ${result.reason}`;
+  }
 
   return { label, from: previous.label, needsWork, added: added.length, slack };
 }
