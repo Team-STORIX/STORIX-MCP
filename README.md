@@ -60,14 +60,21 @@ claude mcp add storix --scope local \
 | `SWAGGER_BASE_URL` | `https://dev.storix.kr` | 대상 서버. 운영을 보려면 이 값만 바꾼다 |
 | `SWAGGER_SPEC_PATH` | `/v3/api-docs` | OpenAPI 문서 경로 |
 | `SWAGGER_USER` / `SWAGGER_PASSWORD` | (없음) | Swagger basic auth. `SecurityConfig`의 `swagger.user`/`swagger.password`와 같은 값 |
+| `STORIX_PARAM_PREFIX` | `/storix/dev` | 자격증명을 둔 Parameter Store 경로 앞부분 |
+| `AWS_REGION` | `ap-northeast-2` | Parameter Store 를 읽을 리전 |
 | `STORIX_DEV_TOKEN` | (없음) | `swagger_call_api`가 Bearer로 붙일 JWT. `auth_login`을 쓰면 필요 없다 |
 | `STORIX_MCP_HOME` | 실행 디렉터리 | `.storix-mcp.json`을 둘 위치 |
 | `SWAGGER_MCP_ALLOW_WRITE` | (꺼짐) | `true`면 `swagger_call_api`가 POST/PUT/PATCH/DELETE도 보낸다 |
 | `MCP_PORT` | `8090` | HTTP 모드 포트. 3000은 프론트 dev 서버가 쓰므로 피했다 |
-| `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_USER`/`PASSWORD` 값 | HTTP 엔드포인트 basic auth 계정 |
+| `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_*` 값 | HTTP 엔드포인트 basic auth 계정 |
 | `MCP_ALLOWED_ORIGINS` | (비어 있음) | 허용할 `Origin` 목록, 쉼표 구분. 비면 브라우저 출처를 전부 거절 |
 | `SWAGGER_CACHE_TTL_MS` | `60000` | 스펙 캐시 유효시간 |
 | `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | 스냅샷 저장 위치. 컨테이너로 띄우면 볼륨으로 빼야 재배포에 살아남는다 |
+
+자격증명을 Parameter Store 에 두면 `SWAGGER_USER` / `SWAGGER_PASSWORD` 를 적지 않아도 된다.
+읽을 권한은 AWS 프로필(환경변수 AWS_PROFILE 또는 기본 프로필)로 정해지며,
+IAM 에서 해당 파라미터 경로만 열어주면 된다.
+
 
 ## HTTP 모드 (프론트 배포용)
 

@@ -1,16 +1,35 @@
 const BASE_URL = (process.env.SWAGGER_BASE_URL || "https://dev.storix.kr").replace(/\/$/, "");
 const SPEC_PATH = process.env.SWAGGER_SPEC_PATH || "/v3/api-docs";
-const SWAGGER_USER = process.env.SWAGGER_USER || "";
-const SWAGGER_PASSWORD = process.env.SWAGGER_PASSWORD || "";
 const TTL_MS = Number(process.env.SWAGGER_CACHE_TTL_MS || 60_000);
 
 export const config = { BASE_URL, SPEC_PATH };
 
 let cache = { spec: null, fetchedAt: 0 };
 
-function basicAuthHeader() {
-  if (!SWAGGER_USER) return null;
-  const raw = `${SWAGGER_USER}:${SWAGGER_PASSWORD}`;
+// 환경변수가 있으면 그걸 쓰고, 없을 때만 Parameter Store 를 본다.
+// 조회는 프로세스당 한 번이면 충분하므로 결과를 들고 있는다.
+let credsPromise = null;
+
+async function credentials() {
+  if (credsPromise) return credsPromise;
+  credsPromise = (async () => {
+    if (process.env.SWAGGER_USER) {
+      return { user: process.env.SWAGGER_USER, password: process.env.SWAGGER_PASSWORD || "" };
+    }
+    try {
+      const { readParams } = await import("../../shared/params.js");
+      const got = await readParams(["swagger/user", "swagger/password"]);
+      return { user: got["swagger/user"], password: got["swagger/password"] };
+    } catch (e) {
+      return { user: "", password: "", error: e.message };
+    }
+  })();
+  return credsPromise;
+}
+
+function basicAuthHeader(creds) {
+  if (!creds?.user) return null;
+  const raw = `${creds.user}:${creds.password}`;
   return `Basic ${Buffer.from(raw, "utf8").toString("base64")}`;
 }
 
@@ -19,14 +38,17 @@ export async function fetchSpec({ force = false } = {}) {
 
   const url = `${BASE_URL}${SPEC_PATH}`;
   const headers = { Accept: "application/json" };
-  const auth = basicAuthHeader();
+  const creds = await credentials();
+  const auth = basicAuthHeader(creds);
   if (auth) headers.Authorization = auth;
 
   const res = await fetch(url, { headers });
 
   if (res.status === 401) {
     throw new Error(
-      `${url} 인증 실패 (401). SWAGGER_USER / SWAGGER_PASSWORD 환경변수를 확인하세요.`
+      `${url} 인증 실패 (401).\n` +
+        `환경변수 SWAGGER_USER / SWAGGER_PASSWORD 를 넣거나, AWS 프로필로 Parameter Store 를 쓰세요.\n` +
+        (creds.error ? `Parameter Store 조회 실패: ${creds.error}` : "")
     );
   }
   if (!res.ok) {
