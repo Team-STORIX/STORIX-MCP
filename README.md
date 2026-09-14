@@ -70,11 +70,18 @@ claude mcp add --transport http storix https://<주소>/mcp \
 |---|---|---|
 | `SWAGGER_BASE_URL` | `https://dev.storix.kr` | 대상 서버 |
 | `SWAGGER_SPEC_PATH` | `/v3/api-docs` | OpenAPI 문서 경로 |
-| `SWAGGER_USER` / `SWAGGER_PASSWORD` | (없음) | 스펙 조회용 basic auth |
+| `SWAGGER_USER` / `SWAGGER_PASSWORD` | (없음) | 스펙 조회용 basic auth. 없으면 Parameter Store 에서 읽는다 |
+| `STORIX_PARAM_PREFIX` | `/storix/dev` | 자격증명을 둔 Parameter Store 경로 앞부분 |
+| `AWS_REGION` | `ap-northeast-2` | Parameter Store 를 읽을 리전 |
 | `SWAGGER_CACHE_TTL_MS` | `60000` | 스펙 캐시 유효시간 |
 | `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | 스냅샷 저장 위치. **컨테이너로 띄우면 볼륨으로 빼라.** 안 그러면 재배포마다 변경 이력이 통째로 날아간다 |
 | `SWAGGER_MCP_ALLOW_WRITE` | (꺼짐) | `true` 여야 `swagger_call_api` 가 POST/PUT/PATCH/DELETE 를 보낸다 |
 | `STORIX_DEV_TOKEN` | (없음) | 호출에 붙일 JWT. `auth_login` 을 쓰면 필요 없다 |
+
+자격증명을 Parameter Store 에 두면 `SWAGGER_USER` / `SWAGGER_PASSWORD` 를 적지 않아도 된다.
+읽을 권한은 AWS 프로필(환경변수 AWS_PROFILE 또는 기본 프로필)로 정해지며,
+IAM 에서 해당 파라미터 경로만 열어주면 된다.
+
 
 **auth (로컬 전용)**
 
