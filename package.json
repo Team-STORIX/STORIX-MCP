@@ -2,7 +2,7 @@
   "name": "storix-mcp",
   "version": "1.0.0",
   "description": "STORIX 개발에 쓰는 도구들을 Claude 에 붙이는 MCP 서버",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Team-STORIX/STORIX-MCP.git"
