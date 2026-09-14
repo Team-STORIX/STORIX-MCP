@@ -10,11 +10,14 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   package:
     name: zip 만들고 올리기
     runs-on: ubuntu-latest
+    env:
+      ROLE: ${{ secrets.LAMBDA_DEPLOY_ROLE_ARN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +43,23 @@ jobs:
           name: lambda-package
           path: lambda.zip
 
-      # AWS 역할이 준비되면 아래를 켠다. 그 전까지는 아티팩트로만 남는다.
-      # - uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.LAMBDA_DEPLOY_ROLE_ARN }}
-      #     aws-region: ap-northeast-2
-      # - run: aws lambda update-function-code --function-name storix-spec-changelog --zip-file fileb://lambda.zip
+      # 역할이 준비돼 있으면 함수까지 갱신한다.
+      # LAMBDA_DEPLOY_ROLE_ARN 이 없으면 건너뛴다 - 아티팩트는 그대로 남는다.
+      - name: AWS 자격증명 (OIDC)
+        if: ${{ env.ROLE != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE }}
+          aws-region: ap-northeast-2
+
+      - name: 함수 코드 갱신
+        if: ${{ env.ROLE != '' }}
+        run: |
+          aws lambda update-function-code \
+            --function-name storix-spec-changelog \
+            --region ap-northeast-2 \
+            --zip-file fileb://lambda.zip \
+            --query '{sha:CodeSha256,size:CodeSize}' --output table
+          aws lambda wait function-updated-v2 \
+            --function-name storix-spec-changelog --region ap-northeast-2
+          echo "갱신 완료"
