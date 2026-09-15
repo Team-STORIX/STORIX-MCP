@@ -626,7 +626,7 @@ export function formatSlackBody(beforeSpec, afterSpec) {
   }
   if (dropped) {
     const extra = droppedErrorCodes ? ` (깨짐·에러코드 ${droppedErrorCodes}건 포함)` : "";
-    out.push(`… 그 외 ${dropped}건 생략${extra}. 자세한 건 CloudWatch 로그.`);
+    out.push(`… 그 외 ${dropped}건 생략${extra}. 전체는 \`swagger_diff_spec\` 으로 보세요.`);
   }
   return out.join("\n").trimEnd();
 }
