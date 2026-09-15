@@ -72,7 +72,7 @@ const httpServer = createServer(async (req, res) => {
   }
 
   // 요청마다 독립 인스턴스: 동시 사용자끼리 상태가 섞이지 않는다.
-  const server = buildServer({ local: false });
+  const server = await buildServer({ local: false });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on("close", () => {
     transport.close();
