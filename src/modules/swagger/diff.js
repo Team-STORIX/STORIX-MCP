@@ -515,11 +515,12 @@ const MAX_SUB_LINES = 6;
 // 슬랙은 섹션 블록을 여러 개 받는다. 한 블록에 우겨넣다 자르지 말고 나눠 싣는다.
 const MAX_SLACK_BODY = 9000;
 
-// 읽는 사람이 쓰는 말로 적는다. diff 기호(+ ~ -)는 우리끼리만 아는 표기다.
+// 메서드는 코드블록 밖에 둔다. 경로만 감싸야 눈에 들어온다.
+// 수정이 기본이라 표시하지 않고, 성격이 다른 신규·삭제만 앞에 붙인다.
 function opLine(spec, key, kind) {
   const [method, path] = key.split(" ");
   const summary = summaryOf(spec, method, path);
-  return `${kind} ${summary ? `${summary} : ` : ""}\`${method} ${path}\``;
+  return `${kind ? `${kind} ` : ""}${method} \`${path}\`${summary ? `  ${summary}` : ""}`;
 }
 
 function tagOf(spec, key) {
@@ -567,14 +568,13 @@ function changedBlocks(afterSpec, changed) {
     const tags = [...new Set(group.map((c) => tagOf(afterSpec, c.operation)))];
 
     if (group.length > 1) {
-      lines.push(`${mark}(수정) 같은 변경 ${group.length}곳`);
+      lines.push(`${mark}같은 변경 ${group.length}곳`);
       for (const c of group) {
         const [m, p] = c.operation.split(" ");
-        const s = summaryOf(afterSpec, m, p);
-        lines.push(`        · ${s ? `${s} : ` : ""}\`${m} ${p}\``);
+        lines.push(`        ${m} \`${p}\``);
       }
     } else {
-      lines.push(`${mark}${opLine(afterSpec, head.operation, "(수정)")}`);
+      lines.push(`${mark}${opLine(afterSpec, head.operation, "")}`);
     }
 
     // 줄 수가 넘치면 접히는데, 접히는 쪽이 에러코드면 정작 급한 걸 못 본다. 먼저 올린다.

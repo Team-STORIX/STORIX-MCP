@@ -34,6 +34,7 @@ export async function handler(event = {}) {
       env: meta.env,
       sha: meta.sha,
       pr: meta.pr,
+      title: meta.title,
       from: previous.label,
       to: label,
       breaks,
