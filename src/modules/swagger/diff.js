@@ -212,8 +212,10 @@ export function diffSpecs(beforeSpec, afterSpec) {
         continue;
       }
       if (!(code in bRes)) {
-        notes.push(`응답 ${code} 추가`);
-        diffErrorCodes(code, null, expand(aRes[code], afterSpec, 0, new Set(), EXPAND_DEPTH)?.content, notes);
+        // 상태코드 자체가 새로 생긴 경우다. "응답 403 추가" 와 "403 에러코드 추가" 로 나누면
+        // 같은 얘기가 두 줄을 차지한다. 코드 이름까지 한 줄에 담는다.
+        const codes = errorCodesOf(expand(aRes[code], afterSpec, 0, new Set(), EXPAND_DEPTH)?.content);
+        notes.push(codes.length ? `응답 ${code} 신규: ${codes.sort().join(", ")}` : `응답 ${code} 추가`);
         continue;
       }
       const bContent = expand(bRes[code], beforeSpec, 0, new Set(), EXPAND_DEPTH)?.content;
@@ -240,7 +242,7 @@ export function diffSpecs(beforeSpec, afterSpec) {
 // "깨지나" 와 "할 일이 있나" 는 다른 질문이다. 필드가 늘거나 에러 코드가 붙으면 기존 앱은
 // 안 깨지지만 프론트는 반드시 붙여야 한다. 그래서 둘을 따로 센다.
 // 여기 적힌 문구는 모두 이 파일이 직접 만들어 내는 것들이다.
-const ACTIONABLE = /(필드 추가|응답 \d+ 추가|에러코드 추가|enum 값 추가|파라미터 추가)/;
+const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가)/;
 
 // 개수 세는 곳이 여러 군데면 곧 어긋난다. 한 곳에서만 센다.
 export function summarize(beforeSpec, afterSpec) {
@@ -542,7 +544,8 @@ function push(groups, tag, block) {
 // 묶기를 여기서도 쓴다. isAdultOnly 같은 공통 필드 추가가 26줄이 되는 걸 막는다.
 // 예산이 모자라면 무엇을 버리느냐가 중요하다. 깨지는 것과 에러 코드가 먼저 남아야 한다.
 // 필드가 늘어난 목록보다 "이 API 가 403 으로 막힌다" 가 프론트에 급하다.
-const ERROR_CODE = /에러코드 (추가|제거)/;
+// 상태코드가 새로 생긴 줄도 에러 코드를 품고 있으므로 같은 급으로 본다.
+const ERROR_CODE = /(에러코드 (추가|제거)|응답 \d+ 신규)/;
 
 function rank(entry) {
   if (entry.breaking.length) return 0;
