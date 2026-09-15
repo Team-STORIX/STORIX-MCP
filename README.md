@@ -366,6 +366,39 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 
 ---
 
+## 각자 만든 MCP 붙이기
+
+로컬에서 쓰는 다른 MCP 서버를 `storix` 하나에 묶을 수 있다. 등록을 여러 개로 늘리지 않고
+한 자리에서 들고 있게 하려는 것이다.
+
+`.storix-mcp.json` 에 `bridge` 를 넣는다. `auth_setup` 이 만드는 그 파일이다.
+
+```jsonc
+{
+  "bridge": [
+    { "alias": "notion", "command": "npx", "args": ["-y", "@notionhq/notion-mcp-server"] },
+    { "alias": "mine", "command": "node", "args": ["/Users/me/tools/my-mcp/index.js"] }
+  ]
+}
+```
+
+툴은 `별칭_툴이름` 으로 올라온다. 위 예라면 `notion_search`, `mine_doctor` 처럼 된다.
+무엇이 붙었는지는 `bridge_list` 로 본다.
+
+**여기 적은 것은 npm 으로 나가지 않는다.** `.storix-mcp.json` 은 `.gitignore` 에 있고
+`package.json` 의 `files` 는 `src` · `flows` · `skills` 만 싣는다. 각자 붙인 것이 패키지에
+섞일 길이 없다.
+
+몇 가지 정해둔 것:
+
+- **로컬 전용이다.** 원격 HTTP 모드에서는 꺼진다 — 자식은 그 사람 컴퓨터에서 뜨는 프로세스다
+- **자식이 죽어도 storix 는 뜬다.** 10초 안에 안 붙으면 건너뛰고 `bridge_list` 에 이유를 남긴다
+  (`STORIX_BRIDGE_TIMEOUT_MS` 로 조절)
+- **별칭이 `swagger` `auth` `report` `metrics` `mobile` `flow` 면 건너뛴다** — 이름이 겹친다
+- **툴 목록은 세션 시작 때 정해진다.** 설정을 고쳤으면 Claude Code 를 다시 켜야 잡힌다
+
+---
+
 ## 툴
 
 | 툴 | 용도 |
