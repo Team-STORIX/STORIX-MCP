@@ -1,7 +1,7 @@
 // CD 가 배포 직후에 부른다. 하는 일은 CLI 의 changelog 와 같다.
 import { fetchSpec } from "./modules/swagger/spec.js";
 import { saveSnapshot, loadSnapshot, listEntries } from "./modules/swagger/snapshots.js";
-import { diffSpecs, formatChangelog } from "./modules/swagger/diff.js";
+import { summarize, formatChangelog, formatSlackBody } from "./modules/swagger/diff.js";
 import { send, configured as slackConfigured } from "./modules/report/slack.js";
 import { buildChangelogPayload } from "./modules/swagger/changelog-slack.js";
 
@@ -26,9 +26,7 @@ export async function handler(event = {}) {
   const report = formatChangelog(before, spec, { ...meta, title: meta.title || `${previous.label} → ${label}` });
   console.log(report);
 
-  const { added, removed, changed } = diffSpecs(before, spec);
-  const needsWork = removed.length + changed.filter((c) => c.breaking.length).length;
-  const soft = changed.filter((c) => !c.breaking.length).length;
+  const { breaks, added, actionable } = summarize(before, spec);
 
   let slack = "미설정";
   if (slackConfigured && !event.noSlack) {
@@ -38,14 +36,14 @@ export async function handler(event = {}) {
       pr: meta.pr,
       from: previous.label,
       to: label,
-      needsWork,
-      added: added.length,
-      soft,
-      detail: report,
+      breaks,
+      added,
+      actionable,
+      body: formatSlackBody(before, spec),
     });
     const result = await send(payload);
     slack = result.sent ? "보냄" : `실패: ${result.reason}`;
   }
 
-  return { label, from: previous.label, needsWork, added: added.length, slack };
+  return { label, from: previous.label, breaks, added, actionable, slack };
 }
