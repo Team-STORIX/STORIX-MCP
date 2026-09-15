@@ -53,7 +53,7 @@ export function buildChangelogPayload({ env, sha, pr, title, from, to, breaks, a
     if (parts.length > MAX_SECTIONS) {
       blocks.push({
         type: "context",
-        elements: [{ type: "mrkdwn", text: "변경이 많아 뒷부분은 생략했습니다. 자세한 건 CloudWatch 로그." }],
+        elements: [{ type: "mrkdwn", text: "변경이 많아 뒷부분은 생략했습니다. 전체는 `swagger_diff_spec` 으로 보세요." }],
       });
     }
   }
