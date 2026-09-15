@@ -3,7 +3,7 @@
 // 판정 로직이 MCP 와 CD 에서 갈라지지 않게 같은 모듈을 그대로 쓴다.
 import { fetchSpec } from "./modules/swagger/spec.js";
 import { saveSnapshot, loadSnapshot, listEntries } from "./modules/swagger/snapshots.js";
-import { diffSpecs, formatChangelog } from "./modules/swagger/diff.js";
+import { summarize, formatChangelog } from "./modules/swagger/diff.js";
 import { send, configured as slackConfigured } from "./modules/report/slack.js";
 
 const USAGE = `사용법
@@ -86,12 +86,11 @@ async function main() {
     console.log(result.sent ? "\n슬랙으로 보냈습니다." : `\n슬랙 전송 안 됨: ${result.reason}`);
   }
 
-  const { removed, changed } = diffSpecs(before, spec);
-  const needsWork = removed.length + changed.filter((c) => c.breaking.length).length;
+  const { breaks } = summarize(before, spec);
 
   // dev 는 배포가 잦아 기본은 알리기만 한다. 막고 싶을 때만 켠다.
-  if (flags["fail-on-breaking"] && needsWork) {
-    console.error(`\n프론트 수정이 필요한 변경 ${needsWork}건이라 실패로 끝냅니다.`);
+  if (flags["fail-on-breaking"] && breaks) {
+    console.error(`\n호환성이 깨지는 변경 ${breaks}건이라 실패로 끝냅니다.`);
     return 1;
   }
   return 0;
