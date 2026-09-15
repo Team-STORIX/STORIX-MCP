@@ -21,8 +21,9 @@ function sections(body) {
   return out;
 }
 
-export function buildChangelogPayload({ env, sha, pr, from, to, breaks, added, actionable, body }) {
+export function buildChangelogPayload({ env, sha, pr, title, from, to, breaks, added, actionable, body }) {
   const head = [`*[📋 API 스펙 변경]*`];
+  if (title) head.push(`- 작업: ${title}`);
   if (env) head.push(`- 환경: \`${env}\``);
   if (sha) head.push(`- 배포: \`${sha}\``);
   if (pr) head.push(`- PR: #${pr}`);
@@ -30,15 +31,13 @@ export function buildChangelogPayload({ env, sha, pr, from, to, breaks, added, a
 
   const quiet = !breaks && !added && !actionable;
 
-  // 라벨만 던지면 무슨 뜻인지 매번 묻게 된다. 한 줄로 같이 적는다.
+  // 자세한 비교는 MCP 로 본다. 여기서는 변경이 있다는 것과 어디가 바뀌었는지만 알린다.
   const fields = quiet
     ? [":white_check_mark: *스펙 변경 없음*"]
     : [
-        `:rotating_light: *기존 동작 깨짐:* ${breaks}`,
+        `:rotating_light: *깨짐:* ${breaks}`,
         `:sparkles: *신규:* ${added}`,
         `:pencil2: *반영 필요:* ${actionable}`,
-        "",
-        "_깨짐 = 지금 앱이 오작동할 수 있음 · 반영 필요 = 앱은 멀쩡하지만 새로 붙여야 함_",
       ];
 
   const blocks = [
