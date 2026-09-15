@@ -27,7 +27,6 @@ jobs:
           node-version: '22'
 
       # 런타임에 어떤 SDK 가 번들돼 있는지는 버전마다 다르다. 직접 담아 그 의존을 없앤다.
-      # 노트북에서 쓰는 쪽은 fs 백엔드라 client-s3 가 필요 없어 package.json 에는 넣지 않는다.
       - name: SDK 설치
         run: npm install --no-save --omit=dev @aws-sdk/client-s3 @aws-sdk/client-ssm
 
