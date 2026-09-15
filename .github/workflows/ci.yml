@@ -1,4 +1,4 @@
-name: CI
+name: STORIX CI - Syntax & Startup Check
 
 on:
   pull_request:
