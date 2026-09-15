@@ -511,8 +511,16 @@ function groupBlock(beforeSpec, afterSpec, group, lines) {
 // ── 슬랙용 압축 본문 ────────────────────────────────────────────────────
 // 상세 리포트는 CloudWatch·터미널에서 본다. 슬랙에는 "어느 도메인의 무엇이 바뀌었나"만 담는다.
 
-const MAX_SUB_LINES = 4;
-const MAX_SLACK_BODY = 2400;
+const MAX_SUB_LINES = 6;
+// 슬랙은 섹션 블록을 여러 개 받는다. 한 블록에 우겨넣다 자르지 말고 나눠 싣는다.
+const MAX_SLACK_BODY = 9000;
+
+// 읽는 사람이 쓰는 말로 적는다. diff 기호(+ ~ -)는 우리끼리만 아는 표기다.
+function opLine(spec, key, kind) {
+  const [method, path] = key.split(" ");
+  const summary = summaryOf(spec, method, path);
+  return `${kind} ${summary ? `${summary} : ` : ""}\`${method} ${path}\``;
+}
 
 function tagOf(spec, key) {
   const [method, path] = key.split(" ");
@@ -559,12 +567,14 @@ function changedBlocks(afterSpec, changed) {
     const tags = [...new Set(group.map((c) => tagOf(afterSpec, c.operation)))];
 
     if (group.length > 1) {
-      lines.push(`${mark}같은 변경 ${group.length}곳`);
-      for (const c of group) lines.push(`        \`~ ${c.operation}\``);
+      lines.push(`${mark}(수정) 같은 변경 ${group.length}곳`);
+      for (const c of group) {
+        const [m, p] = c.operation.split(" ");
+        const s = summaryOf(afterSpec, m, p);
+        lines.push(`        · ${s ? `${s} : ` : ""}\`${m} ${p}\``);
+      }
     } else {
-      const [method, path] = head.operation.split(" ");
-      const summary = summaryOf(afterSpec, method, path);
-      lines.push(`${mark}\`~ ${head.operation}\`${summary ? `  ${summary}` : ""}`);
+      lines.push(`${mark}${opLine(afterSpec, head.operation, "(수정)")}`);
     }
 
     // 줄 수가 넘치면 접히는데, 접히는 쪽이 에러코드면 정작 급한 걸 못 본다. 먼저 올린다.
@@ -585,12 +595,10 @@ export function formatSlackBody(beforeSpec, afterSpec) {
 
   const blocks = [];
   for (const key of removed) {
-    blocks.push({ tag: tagOf(beforeSpec, key), rank: 0, lines: [`:rotating_light: \`- ${key}\` 삭제됨`] });
+    blocks.push({ tag: tagOf(beforeSpec, key), rank: 0, lines: [`:rotating_light: ${opLine(beforeSpec, key, "(삭제)")}`] });
   }
   for (const key of added) {
-    const [method, path] = key.split(" ");
-    const summary = summaryOf(afterSpec, method, path);
-    blocks.push({ tag: tagOf(afterSpec, key), rank: 1, lines: [`\`+ ${key}\`${summary ? `  ${summary}` : ""}`] });
+    blocks.push({ tag: tagOf(afterSpec, key), rank: 1, lines: [opLine(afterSpec, key, "(신규)")] });
   }
   blocks.push(...changedBlocks(afterSpec, changed));
 
