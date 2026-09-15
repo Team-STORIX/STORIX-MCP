@@ -16,6 +16,24 @@ function contentTypes(content) {
   return Object.keys(content || {}).sort();
 }
 
+// 에러 코드는 응답 예시의 키다. errors.js 가 읽는 자리와 같다.
+// 상태코드만 비교하면 이미 403 이 있던 API 에 새 코드가 붙어도 드러나지 않는다.
+function errorCodesOf(content) {
+  for (const media of Object.values(content || {})) {
+    if (media?.examples) return Object.keys(media.examples);
+  }
+  return [];
+}
+
+function diffErrorCodes(status, beforeContent, afterContent, notes) {
+  const before = new Set(errorCodesOf(beforeContent));
+  const after = new Set(errorCodesOf(afterContent));
+  const added = [...after].filter((c) => !before.has(c));
+  const removed = [...before].filter((c) => !after.has(c));
+  if (added.length) notes.push(`응답 ${status} 에러코드 추가: ${added.sort().join(", ")}`);
+  if (removed.length) notes.push(`응답 ${status} 에러코드 제거: ${removed.sort().join(", ")}`);
+}
+
 // 필드 하나의 모양. 경로만 모으면 userId: string → number 를 놓친다.
 function shape(schema) {
   const s = schema || {};
@@ -195,11 +213,13 @@ export function diffSpecs(beforeSpec, afterSpec) {
       }
       if (!(code in bRes)) {
         notes.push(`응답 ${code} 추가`);
+        diffErrorCodes(code, null, expand(aRes[code], afterSpec, 0, new Set(), EXPAND_DEPTH)?.content, notes);
         continue;
       }
       const bContent = expand(bRes[code], beforeSpec, 0, new Set(), EXPAND_DEPTH)?.content;
       const aContent = expand(aRes[code], afterSpec, 0, new Set(), EXPAND_DEPTH)?.content;
       diffFields(`응답 ${code}`, "응답", pickSchema(bContent), pickSchema(aContent), breaking, notes);
+      diffErrorCodes(code, bContent, aContent, notes);
       const bt = contentTypes(bContent).join(", ");
       const at = contentTypes(aContent).join(", ");
       if (bt !== at) notes.push(`응답 ${code} content-type 변경: ${bt || "없음"} → ${at || "없음"}`);
@@ -215,6 +235,26 @@ export function diffSpecs(beforeSpec, afterSpec) {
   }
 
   return { added, removed, changed };
+}
+
+// "깨지나" 와 "할 일이 있나" 는 다른 질문이다. 필드가 늘거나 에러 코드가 붙으면 기존 앱은
+// 안 깨지지만 프론트는 반드시 붙여야 한다. 그래서 둘을 따로 센다.
+// 여기 적힌 문구는 모두 이 파일이 직접 만들어 내는 것들이다.
+const ACTIONABLE = /(필드 추가|응답 \d+ 추가|에러코드 추가|enum 값 추가|파라미터 추가)/;
+
+// 개수 세는 곳이 여러 군데면 곧 어긋난다. 한 곳에서만 센다.
+export function summarize(beforeSpec, afterSpec) {
+  const diff = diffSpecs(beforeSpec, afterSpec);
+  const breakingOps = diff.changed.filter((c) => c.breaking.length);
+  const actionableOps = diff.changed.filter(
+    (c) => !c.breaking.length && c.notes.some((n) => ACTIONABLE.test(n))
+  );
+  return {
+    diff,
+    breaks: diff.removed.length + breakingOps.length,
+    added: diff.added.length,
+    actionable: actionableOps.length,
+  };
 }
 
 export function formatDiff({ added, removed, changed }, beforeLabel, afterLabel) {
@@ -466,6 +506,121 @@ function groupBlock(beforeSpec, afterSpec, group, lines) {
   lines.push("");
   lines.push(`  대표 응답 · ${head.operation}`);
   opBlock(beforeSpec, afterSpec, head, lines, { skipHeader: true });
+}
+
+// ── 슬랙용 압축 본문 ────────────────────────────────────────────────────
+// 상세 리포트는 CloudWatch·터미널에서 본다. 슬랙에는 "어느 도메인의 무엇이 바뀌었나"만 담는다.
+
+const MAX_SUB_LINES = 4;
+const MAX_SLACK_BODY = 2400;
+
+function tagOf(spec, key) {
+  const [method, path] = key.split(" ");
+  return findOperation(spec, method, path)?.op?.tags?.[0] || "기타";
+}
+
+// 태그에 이미 대괄호가 들어 있는 것들이 있다. 덧씌우면 [[+] 탭] 이 된다.
+function tagLabel(tag) {
+  return /^\[.*\]$/.test(tag) ? `*${tag}*` : `*[${tag}]*`;
+}
+
+function push(groups, tag, block) {
+  if (!groups.has(tag)) groups.set(tag, []);
+  groups.get(tag).push(block);
+}
+
+// 같은 DTO 를 여러 응답이 물면 똑같은 변경이 수십 번 나온다. 상세 리포트가 쓰는
+// 묶기를 여기서도 쓴다. isAdultOnly 같은 공통 필드 추가가 26줄이 되는 걸 막는다.
+// 예산이 모자라면 무엇을 버리느냐가 중요하다. 깨지는 것과 에러 코드가 먼저 남아야 한다.
+// 필드가 늘어난 목록보다 "이 API 가 403 으로 막힌다" 가 프론트에 급하다.
+const ERROR_CODE = /에러코드 (추가|제거)/;
+
+function rank(entry) {
+  if (entry.breaking.length) return 0;
+  if (entry.notes.some((n) => ERROR_CODE.test(n))) return 1;
+  return 2;
+}
+
+// 엔드포인트 안에서도 같은 순서를 지킨다. 필드가 늘어난 줄보다 에러코드가 먼저다.
+function subRank(line) {
+  if (ERROR_CODE.test(line)) return 0;
+  if (/응답 \d+ 추가|파라미터 추가/.test(line)) return 1;
+  return 2;
+}
+
+function changedBlocks(afterSpec, changed) {
+  const blocks = [];
+  for (const group of groupEntries(changed)) {
+    const head = group[0];
+    const detail = [...head.breaking, ...head.notes.filter((n) => ACTIONABLE.test(n))];
+    const mark = head.breaking.length ? ":rotating_light: " : "";
+    const lines = [];
+
+    const tags = [...new Set(group.map((c) => tagOf(afterSpec, c.operation)))];
+
+    if (group.length > 1) {
+      lines.push(`${mark}같은 변경 ${group.length}곳`);
+      for (const c of group) lines.push(`        \`~ ${c.operation}\``);
+    } else {
+      const [method, path] = head.operation.split(" ");
+      const summary = summaryOf(afterSpec, method, path);
+      lines.push(`${mark}\`~ ${head.operation}\`${summary ? `  ${summary}` : ""}`);
+    }
+
+    // 줄 수가 넘치면 접히는데, 접히는 쪽이 에러코드면 정작 급한 걸 못 본다. 먼저 올린다.
+    const ordered = [...detail].sort((a, b) => subRank(a) - subRank(b));
+    for (const d of ordered.slice(0, MAX_SUB_LINES)) lines.push(`        • ${d}`);
+    if (ordered.length > MAX_SUB_LINES) {
+      lines.push(`        • (상세 ${ordered.length - MAX_SUB_LINES}줄 더 있음)`);
+    }
+
+    // 묶음이 여러 태그에 걸치면 어느 한 태그 밑에 두면 오해가 된다. 따로 모은다.
+    blocks.push({ tag: tags.length > 1 ? "여러 도메인 공통" : tags[0], rank: rank(head), lines });
+  }
+  return blocks;
+}
+
+export function formatSlackBody(beforeSpec, afterSpec) {
+  const { added, removed, changed } = diffSpecs(beforeSpec, afterSpec);
+
+  const blocks = [];
+  for (const key of removed) {
+    blocks.push({ tag: tagOf(beforeSpec, key), rank: 0, lines: [`:rotating_light: \`- ${key}\` 삭제됨`] });
+  }
+  for (const key of added) {
+    const [method, path] = key.split(" ");
+    const summary = summaryOf(afterSpec, method, path);
+    blocks.push({ tag: tagOf(afterSpec, key), rank: 1, lines: [`\`+ ${key}\`${summary ? `  ${summary}` : ""}`] });
+  }
+  blocks.push(...changedBlocks(afterSpec, changed));
+
+  // 중요한 것부터 예산을 쓴다. 담기로 한 것만 태그별로 다시 모아 출력한다.
+  const kept = new Map();
+  let used = 0;
+  let dropped = 0;
+  let droppedErrorCodes = 0;
+
+  for (const b of [...blocks].sort((x, y) => x.rank - y.rank)) {
+    const cost = b.lines.join("\n").length + b.tag.length + 6;
+    if (used + cost > MAX_SLACK_BODY) {
+      dropped++;
+      if (b.rank <= 1) droppedErrorCodes++;
+      continue;
+    }
+    if (!kept.has(b.tag)) kept.set(b.tag, []);
+    kept.get(b.tag).push(b.lines);
+    used += cost;
+  }
+
+  const out = [];
+  for (const [tag, list] of [...kept].sort((a, b) => a[0].localeCompare(b[0]))) {
+    out.push([tagLabel(tag), ...list.flat(), ""].join("\n"));
+  }
+  if (dropped) {
+    const extra = droppedErrorCodes ? ` (깨짐·에러코드 ${droppedErrorCodes}건 포함)` : "";
+    out.push(`… 그 외 ${dropped}건 생략${extra}. 자세한 건 CloudWatch 로그.`);
+  }
+  return out.join("\n").trimEnd();
 }
 
 export function formatChangelog(beforeSpec, afterSpec, meta = {}) {
