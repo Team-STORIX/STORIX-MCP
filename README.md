@@ -33,9 +33,15 @@ claude mcp add storix -- npx -y @team-storix/storix-mcp@latest
 ```
 
 자격증명은 각자 넣는다. `SWAGGER_USER` 를 넣거나, AWS 프로필만 주고 Parameter Store 에서 읽게 한다.
+버킷까지 같이 주면 팀이 공유하는 배포 이력(`swagger_history` · `swagger_diff_spec`)도 잡힌다.
 
 ```jsonc
-{ "env": { "AWS_PROFILE": "storix" } }
+{
+  "env": {
+    "AWS_PROFILE": "storix",
+    "SWAGGER_SNAPSHOT_S3_BUCKET": "storix-2.0-besfeyc-3o8dxghk"
+  }
+}
 ```
 
 저장소를 받아서 각자 등록한다. 로컬 모드에서는 모든 모듈이 켜진다.
@@ -86,7 +92,9 @@ claude mcp add --transport http storix https://<주소>/mcp \
 | `STORIX_PARAM_PREFIX` | `/storix/dev` | 자격증명을 둔 Parameter Store 경로 앞부분 |
 | `AWS_REGION` | `ap-northeast-2` | Parameter Store 를 읽을 리전 |
 | `SWAGGER_CACHE_TTL_MS` | `60000` | 스펙 캐시 유효시간 |
-| `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | 스냅샷 저장 위치. **컨테이너로 띄우면 볼륨으로 빼라.** 안 그러면 재배포마다 변경 이력이 통째로 날아간다 |
+| `SWAGGER_SNAPSHOT_DIR` | `~/.storix-mcp/swagger/snapshots` | `fs` 백엔드의 스냅샷 저장 위치. **컨테이너로 띄우면 볼륨으로 빼라.** 안 그러면 재배포마다 변경 이력이 통째로 날아간다 |
+| `SWAGGER_SNAPSHOT_S3_BUCKET` | (없음) | 넣으면 스냅샷을 S3 에서 읽는다. 팀이 공유하는 배포 이력이 여기 쌓이므로 `swagger_history` · `swagger_diff_spec` 을 쓰려면 필요하다 |
+| `SWAGGER_SNAPSHOT_S3_PREFIX` | `swagger-snapshots` | 위 버킷 안의 경로 앞부분 |
 | `SWAGGER_MCP_ALLOW_WRITE` | (꺼짐) | `true` 여야 `swagger_call_api` 가 POST/PUT/PATCH/DELETE 를 보낸다 |
 | `STORIX_DEV_TOKEN` | (없음) | 호출에 붙일 JWT. `auth_login` 을 쓰면 필요 없다 |
 
@@ -345,11 +353,14 @@ Lambda 는 호출 주소가 따로 생기지 않는다. `lambda:InvokeFunction` 
 
 | 백엔드 | 언제 | 고르는 법 |
 |---|---|---|
-| `fs` | 로컬, 그리고 나중에 EFS 를 붙일 때 | 기본값 |
-| `s3` | Lambda | `SWAGGER_SNAPSHOT_S3_BUCKET` 이 있으면 |
+| `fs` | 각자 찍어 보는 로컬 이력, 그리고 나중에 EFS 를 붙일 때 | 기본값 |
+| `s3` | Lambda, 그리고 팀이 공유하는 배포 이력을 볼 때 | `SWAGGER_SNAPSHOT_S3_BUCKET` 이 있으면 |
 
 EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWAGGER_SNAPSHOT_DIR` 만 바꾸면 된다.
-S3 클라이언트는 Lambda 런타임에 들어 있어 의존성으로 넣지 않았고, `s3` 를 고를 때만 불러온다.
+
+**이력은 CD 가 배포 때마다 S3 에 쌓는다.** 그래서 버킷을 주지 않으면 비어 있는 `fs` 를 보게 되고
+`swagger_history` 는 "스냅샷이 없다"고 답한다. 읽기 권한은 AWS 프로필로 정해지며, 쓰기는 주지 않는다 —
+스냅샷을 찍는 것은 CD 의 몫이다.
 
 **스냅샷이 사라지면 직전 배포와 비교할 수가 없다.** 컨테이너로 띄운다면 반드시 볼륨으로 빼라.
 
