@@ -21,9 +21,11 @@ function sections(body) {
   return out;
 }
 
-export function buildChangelogPayload({ env, sha, pr, title, from, to, breaks, added, actionable, body }) {
+// 작업자 표시는 부르는 쪽이 정해서 넘긴다. 이 패키지는 공개라 사람 이름표를 두지 않는다.
+export function buildChangelogPayload({ env, sha, pr, title, author, from, to, breaks, added, actionable, body }) {
   const head = [`*[📋 API 스펙 변경]*`];
   if (title) head.push(`- 작업: ${title}`);
+  if (author) head.push(`- 작업자: ${author}`);
   if (env) head.push(`- 환경: \`${env}\``);
   if (sha) head.push(`- 배포: \`${sha}\``);
   if (pr) head.push(`- PR: #${pr}`);
