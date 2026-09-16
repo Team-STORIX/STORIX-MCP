@@ -11,7 +11,7 @@ const defaultLabel = () => `dev-${new Date().toISOString().slice(0, 16).replace(
 export async function handler(event = {}) {
   const label = event.label || defaultLabel();
   const meta = { at: stamp() };
-  for (const k of ["commit", "pr", "title", "env"]) if (event[k]) meta[k] = String(event[k]);
+  for (const k of ["commit", "pr", "title", "env", "author"]) if (event[k]) meta[k] = String(event[k]);
   if (meta.commit) meta.sha = meta.commit.slice(0, 7);
 
   const spec = await fetchSpec({ force: true });
@@ -35,6 +35,7 @@ export async function handler(event = {}) {
       sha: meta.sha,
       pr: meta.pr,
       title: meta.title,
+      author: meta.author,
       from: previous.label,
       to: label,
       breaks,
