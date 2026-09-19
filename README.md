@@ -39,7 +39,7 @@ claude mcp add storix -- npx -y @team-storix/storix-mcp@latest
 {
   "env": {
     "AWS_PROFILE": "storix",
-    "SWAGGER_SNAPSHOT_S3_BUCKET": "storix-2.0-besfeyc-3o8dxghk"
+    "SWAGGER_SNAPSHOT_S3_BUCKET": "<스냅샷 버킷 — 팀 시크릿 참고>"
   }
 }
 ```
