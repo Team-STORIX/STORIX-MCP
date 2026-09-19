@@ -179,6 +179,74 @@ function securityText(spec, op) {
   return sec.flatMap((s) => Object.keys(s)).sort().join(", ") || "없음";
 }
 
+// STOMP 는 paths 에 없어 지금까지 diff 에 한 줄도 안 나갔다. BE 가 x-websocket 으로 실어 보낸다.
+const WEBSOCKET_KEY = "STOMP /ws-stomp";
+
+function destinationMap(contract) {
+  return new Map((contract?.destinations ?? []).map((d) => [`${d.type} ${d.path}`, d]));
+}
+
+function errorCodeMap(contract) {
+  return new Map((contract?.errorCodes ?? []).map((e) => [e.code, e]));
+}
+
+function diffWebsocket(beforeSpec, afterSpec) {
+  const before = beforeSpec?.["x-websocket"];
+  const after = afterSpec?.["x-websocket"];
+  if (!before && !after) return null;
+
+  const breaking = [];
+  const notes = [];
+
+  if (before && !after) {
+    return { operation: WEBSOCKET_KEY, breaking: ["웹소켓 계약 제거"], notes };
+  }
+  if (!before && after) notes.push("웹소켓 계약 추가");
+
+  const bDest = destinationMap(before);
+  const aDest = destinationMap(after);
+  for (const [key, d] of aDest) {
+    if (bDest.has(key)) continue;
+    notes.push(d.auth ? `목적지 추가: ${key} · ${d.auth}` : `목적지 추가: ${key}`);
+  }
+  for (const key of bDest.keys()) {
+    if (!aDest.has(key)) breaking.push(`목적지 제거: ${key}`);
+  }
+  for (const [key, d] of aDest) {
+    const prev = bDest.get(key);
+    if (prev && prev.auth !== d.auth) {
+      breaking.push(`목적지 권한 변경: ${key} · ${prev.auth ?? "없음"} → ${d.auth ?? "없음"}`);
+    }
+  }
+
+  if (before && before.errorDestination !== after.errorDestination) {
+    breaking.push(`에러 목적지 변경: ${before.errorDestination ?? "없음"} → ${after.errorDestination ?? "없음"}`);
+  }
+
+  const bReason = new Set(before?.errorReasons ?? []);
+  const aReason = new Set(after.errorReasons ?? []);
+  const addedReasons = [...aReason].filter((r) => !bReason.has(r));
+  const removedReasons = [...bReason].filter((r) => !aReason.has(r));
+  if (addedReasons.length) notes.push(`에러 사유 추가: ${addedReasons.sort().join(", ")}`);
+  if (removedReasons.length) breaking.push(`에러 사유 제거: ${removedReasons.sort().join(", ")}`);
+
+  const bCode = errorCodeMap(before);
+  const aCode = errorCodeMap(after);
+  const addedCodes = [...aCode.keys()].filter((c) => !bCode.has(c));
+  const removedCodes = [...bCode.keys()].filter((c) => !aCode.has(c));
+  if (addedCodes.length) notes.push(`에러코드 추가: ${addedCodes.sort().join(", ")}`);
+  if (removedCodes.length) notes.push(`에러코드 제거: ${removedCodes.sort().join(", ")}`);
+  for (const [code, e] of aCode) {
+    const prev = bCode.get(code);
+    if (prev && prev.reason !== e.reason) {
+      notes.push(`에러 사유 변경: ${code} · ${prev.reason ?? "없음"} → ${e.reason ?? "없음"}`);
+    }
+  }
+
+  if (!breaking.length && !notes.length) return null;
+  return { operation: WEBSOCKET_KEY, breaking, notes };
+}
+
 export function diffSpecs(beforeSpec, afterSpec) {
   const key = (o) => `${o.method} ${o.path}`;
   const before = new Map(eachOperation(beforeSpec).map((o) => [key(o), o]));
@@ -236,13 +304,16 @@ export function diffSpecs(beforeSpec, afterSpec) {
     if (breaking.length || notes.length) changed.push({ operation: k, breaking, notes });
   }
 
+  const websocket = diffWebsocket(beforeSpec, afterSpec);
+  if (websocket) changed.push(websocket);
+
   return { added, removed, changed };
 }
 
 // "깨지나" 와 "할 일이 있나" 는 다른 질문이다. 필드가 늘거나 에러 코드가 붙으면 기존 앱은
 // 안 깨지지만 프론트는 반드시 붙여야 한다. 그래서 둘을 따로 센다.
 // 여기 적힌 문구는 모두 이 파일이 직접 만들어 내는 것들이다.
-const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가)/;
+const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가|목적지 추가|에러 사유 (추가|변경))/;
 
 // 개수 세는 곳이 여러 군데면 곧 어긋난다. 한 곳에서만 센다.
 export function summarize(beforeSpec, afterSpec) {
@@ -526,6 +597,7 @@ function opLine(spec, key, kind) {
 }
 
 function tagOf(spec, key) {
+  if (key === WEBSOCKET_KEY) return "웹소켓";
   const [method, path] = key.split(" ");
   return findOperation(spec, method, path)?.op?.tags?.[0] || "기타";
 }
