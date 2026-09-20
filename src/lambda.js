@@ -9,14 +9,17 @@ const stamp = () => new Date().toISOString().slice(0, 16).replace("T", " ");
 const defaultLabel = () => `dev-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`;
 
 export async function handler(event = {}) {
-  const label = event.label || defaultLabel();
+  const label = event.to || event.label || defaultLabel();
   const meta = { at: stamp() };
   for (const k of ["commit", "pr", "title", "env", "author"]) if (event[k]) meta[k] = String(event[k]);
   if (meta.commit) meta.sha = meta.commit.slice(0, 7);
 
-  const spec = await fetchSpec({ force: true });
-  const previous = (await listEntries()).at(-1);
-  await saveSnapshot(label, spec, meta);
+  // 알림 포맷을 고친 뒤 이미 찍힌 스냅샷으로 다시 만들어 보낼 때 쓴다. 스냅샷은 남기지 않는다.
+  const replay = Boolean(event.from && event.to);
+
+  const spec = replay ? await loadSnapshot(event.to) : await fetchSpec({ force: true });
+  const previous = replay ? { label: event.from } : (await listEntries()).at(-1);
+  if (!replay) await saveSnapshot(label, spec, meta);
 
   if (!previous) {
     return { label, baseline: true, message: "비교할 이전 스냅샷이 없어 기준점만 잡았습니다." };
