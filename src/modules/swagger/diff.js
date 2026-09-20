@@ -205,9 +205,15 @@ function diffWebsocket(beforeSpec, afterSpec) {
 
   const bDest = destinationMap(before);
   const aDest = destinationMap(after);
+  const addedByAuth = new Map();
   for (const [key, d] of aDest) {
     if (bDest.has(key)) continue;
-    notes.push(d.auth ? `목적지 추가: ${key} · ${d.auth}` : `목적지 추가: ${key}`);
+    const auth = d.auth ?? "제한 없음";
+    if (!addedByAuth.has(auth)) addedByAuth.set(auth, []);
+    addedByAuth.get(auth).push(key);
+  }
+  for (const [auth, keys] of addedByAuth) {
+    notes.push(`목적지 추가 · ${auth}: ${keys.sort().join(", ")}`);
   }
   for (const key of bDest.keys()) {
     if (!aDest.has(key)) breaking.push(`목적지 제거: ${key}`);
@@ -225,17 +231,30 @@ function diffWebsocket(beforeSpec, afterSpec) {
 
   const bReason = new Set(before?.errorReasons ?? []);
   const aReason = new Set(after.errorReasons ?? []);
-  const addedReasons = [...aReason].filter((r) => !bReason.has(r));
   const removedReasons = [...bReason].filter((r) => !aReason.has(r));
-  if (addedReasons.length) notes.push(`에러 사유 추가: ${addedReasons.sort().join(", ")}`);
   if (removedReasons.length) breaking.push(`에러 사유 제거: ${removedReasons.sort().join(", ")}`);
 
   const bCode = errorCodeMap(before);
   const aCode = errorCodeMap(after);
-  const addedCodes = [...aCode.keys()].filter((c) => !bCode.has(c));
+
+  // 앱은 message 헤더로 재연결 여부를 정한다. 사유별로 묶어야 무엇을 해야 하는지가 보인다.
+  const addedByReason = new Map();
+  for (const [code, e] of aCode) {
+    if (bCode.has(code)) continue;
+    const reason = e.reason ?? "기타";
+    if (!addedByReason.has(reason)) addedByReason.set(reason, []);
+    addedByReason.get(reason).push(code);
+  }
+  for (const reason of [...aReason, ...addedByReason.keys()]) {
+    const codes = addedByReason.get(reason);
+    if (!codes) continue;
+    addedByReason.delete(reason);
+    notes.push(`${reason} 에러코드 추가: ${codes.sort().join(", ")}`);
+  }
+
   const removedCodes = [...bCode.keys()].filter((c) => !aCode.has(c));
-  if (addedCodes.length) notes.push(`에러코드 추가: ${addedCodes.sort().join(", ")}`);
   if (removedCodes.length) notes.push(`에러코드 제거: ${removedCodes.sort().join(", ")}`);
+
   for (const [code, e] of aCode) {
     const prev = bCode.get(code);
     if (prev && prev.reason !== e.reason) {
@@ -313,7 +332,7 @@ export function diffSpecs(beforeSpec, afterSpec) {
 // "깨지나" 와 "할 일이 있나" 는 다른 질문이다. 필드가 늘거나 에러 코드가 붙으면 기존 앱은
 // 안 깨지지만 프론트는 반드시 붙여야 한다. 그래서 둘을 따로 센다.
 // 여기 적힌 문구는 모두 이 파일이 직접 만들어 내는 것들이다.
-const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가|목적지 추가|에러 사유 (추가|변경))/;
+const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가|목적지 추가|에러코드 추가|에러 사유 변경)/;
 
 // 개수 세는 곳이 여러 군데면 곧 어긋난다. 한 곳에서만 센다.
 export function summarize(beforeSpec, afterSpec) {
