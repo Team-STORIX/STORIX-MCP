@@ -373,10 +373,14 @@ dev 서버 2시간만 더 쓸게
 그 시각이 지난 뒤 처음 오는 정각에 꺼진다.
 
 끄기는 다른 사람이 쓰고 있을 수 있어 확인을 받고 실행한다.
-develop 에 머지되면 배포가 dev 를 알아서 켠다. 이때도 켠 뒤 4시간은 그대로 둔다.
+
+develop 에 머지되면 배포가 dev 를 알아서 켠다. **배포가 켠 서버는 30분만 두고 다음 정각에 끈다.**
+아무도 안 쓰는데 배포 때문에 4시간씩 도는 것을 막기 위해서다. 그 사이에 쓰려면 `dev_server_start` 를 부르면
+직접 켠 것과 같이 4시간을 확보한다. 배포는 켤 때 인스턴스에 `deploy-started-at` 태그를 적고,
+그 시각이 서버가 켜진 시각과 붙어 있으면 배포가 켠 것으로 본다.
 
 자동 종료는 매시 정각에 도는 Lambda `dev-server-auto-stop` 이 한다. 코드는 `scripts/dev-autostop-lambda.mjs` 이고,
-4시간은 Lambda 환경변수와 `src/modules/devserver/index.js` 두 곳에 같이 적혀 있다.
+4시간과 30분은 Lambda 환경변수와 `src/modules/devserver/index.js` 두 곳에 같이 적혀 있다.
 
 ### 스냅샷을 어디에 두나
 
