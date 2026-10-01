@@ -10,6 +10,7 @@ description: STORIX 공식 MCP(서버 이름 storix)를 붙이고 쓴다. 최초
 | 모듈 | 툴 접두사 | 하는 일 |
 |---|---|---|
 | swagger | `swagger_` | dev Swagger 스펙 조회·호출·버전 비교 |
+| dev_server | `dev_server_` | dev 서버 상태 확인·켜기·끄기 |
 
 저장소: `~/Desktop/Coding/MCP/storix-mcp` (독립 git, 원격 없음, 빌드 없음)
 
@@ -119,6 +120,7 @@ breaking으로 분류: 엔드포인트·필드·응답 상태코드 제거, 타�
 | 옛 이름(`mcp__storix-swagger__*`)이 보임 | 이름 변경 전 세션이다. 재시작 |
 | 전부 401 | ①번 basic auth 값 |
 | `swagger_call_api`만 401 | ③번 JWT |
+| 전부 502 이거나 응답이 없음 | dev 서버가 꺼져 있다. `dev_server_status` → `dev_server_start`, 앱이 뜨기까지 1~2분 |
 | 스펙이 옛날 것 | `swagger_refresh_spec`. 캐시 TTL 60초 |
 | 쓰기 메서드가 막힘 | 의도된 것. 사용자가 `SWAGGER_MCP_ALLOW_WRITE=true`를 넣어야 한다 |
 

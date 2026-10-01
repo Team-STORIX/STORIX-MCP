@@ -9,7 +9,7 @@ export const NAMESPACE = "bridge";
 // 대신 어떤 인자를 받는지는 설명에 적어 둔다. 안 그러면 모델이 무엇을 넣을지 알 수 없다.
 const ANY_ARGS = z.object({}).passthrough();
 
-const RESERVED = new Set(["swagger", "auth", "report", "metrics", "mobile", "flow", "bridge"]);
+const RESERVED = new Set(["swagger", "auth", "report", "metrics", "mobile", "flow", "bridge", "dev_server"]);
 
 function argsText(schema) {
   const props = schema?.properties;
