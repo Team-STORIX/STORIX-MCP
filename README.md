@@ -140,6 +140,14 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 | `STORIX_APP_IOS_BUNDLE_ID` | `kr.storix.app` | 시뮬레이터에 앱이 깔렸는지 볼 때 쓴다 |
 | `STORIX_APP_ANDROID_PACKAGE` | `kr.storix.android` | 위와 같다 |
 
+**dev_server (로컬 전용)**
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `STORIX_DEV_INSTANCE_NAME` | `Dev Server` | dev 인스턴스의 Name 태그. Env 태그가 `dev` 인 것만 다룬다 |
+
+EC2 는 각자 AWS 프로필로 부른다. 그 계정이 IAM `developers` 그룹에 들어 있어야 한다.
+
 **HTTP 모드**
 
 | 변수 | 기본값 | 설명 |
@@ -347,6 +355,29 @@ Lambda 는 호출 주소가 따로 생기지 않는다. `lambda:InvokeFunction` 
 배포 역할 하나로 좁혀 둔다. **Function URL 은 만들지 않는다** — 만드는 순간 공개 엔드포인트가 된다.
 리소스를 만드는 명령은 `scripts/aws-setup.sh` 에 모아 뒀다.
 
+### dev 서버 켜고 끄기
+
+dev 서버는 비용 때문에 평소 꺼 둔다. 쓰려면 켜고, 켠 뒤 4시간이 지나면 다음 정각에 자동으로 꺼진다.
+쓰다가 꺼져도 다시 켜면 된다.
+
+```
+dev 서버 켜져 있어?
+dev 서버 켜줘
+dev 서버 2시간만 더 쓸게
+```
+
+켜고 나서 앱이 응답하기까지 1~2분 걸린다. `dev_server_status` 가 앱 응답 여부와 꺼지는 시각을 같이 보여준다.
+퍼블릭 IP 는 켤 때마다 바뀌지만 `dev.storix.kr` 주소는 그대로다.
+
+더 써야 하면 `dev_server_extend` 로 미룬다. 지금부터 정한 시간만큼 인스턴스의 `extend-until` 태그에 적고,
+그 시각이 지난 뒤 처음 오는 정각에 꺼진다.
+
+끄기는 다른 사람이 쓰고 있을 수 있어 확인을 받고 실행한다.
+develop 에 머지되면 배포가 dev 를 알아서 켠다. 이때도 켠 뒤 4시간은 그대로 둔다.
+
+자동 종료는 매시 정각에 도는 Lambda `dev-server-auto-stop` 이 한다. 코드는 `scripts/dev-autostop-lambda.mjs` 이고,
+4시간은 Lambda 환경변수와 `src/modules/devserver/index.js` 두 곳에 같이 적혀 있다.
+
 ### 스냅샷을 어디에 두나
 
 바이트를 읽고 쓰는 부분만 백엔드로 갈라 뒀다. 라벨 규칙과 색인 병합은 그대로다.
@@ -426,6 +457,10 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 | `flow_run` | 시나리오 실행과 판정 |
 | `mobile_doctor` | 도구·기기 점검, 지금 되는 것 (로컬) |
 | `mobile_open` | 딥링크로 앱 화면 띄우기 (로컬) |
+| `dev_server_status` | dev 서버 상태, 앱 응답, 자동으로 꺼지는 시각 (로컬) |
+| `dev_server_start` | dev 서버 켜기 (로컬) |
+| `dev_server_extend` | 자동 종료 미루기. 기본 2시간, 최대 12시간 (로컬) |
+| `dev_server_stop` | dev 서버 끄기 (로컬) |
 
 ---
 
@@ -439,6 +474,9 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 
 `mobile` 은 원격에서 통째로 꺼진다. 기기를 만지는 일이라 그 사람 컴퓨터에서만 뜻이 있고,
 공유 서버에서 남의 기기를 열 수 있게 둘 이유가 없다.
+
+`dev_server` 도 원격에서 통째로 꺼진다. 각자 AWS 프로필로 EC2 를 직접 불러야
+누가 켜고 껐는지가 CloudTrail 에 사람별로 남는다. 공유 서버에 EC2 권한을 두면 그 구분이 사라진다.
 
 `metrics` 는 원격에서도 켜둔다. 미리 정의한 집계만 나가서 개인정보가 응답에 안 담기기
 때문이다. 자유 SQL 을 열지 않은 이유가 여기에 있다.
@@ -490,6 +528,7 @@ src/
     auth/               credentials
     report/             verdict · slack · guide
     metrics/            db · queries
+    devserver/          ec2
 ```
 
 모듈을 추가하려면 `src/modules/<이름>/index.js` 에 `NAMESPACE` 와
