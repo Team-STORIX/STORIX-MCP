@@ -2,6 +2,7 @@
 const REGION = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "ap-northeast-2";
 const INSTANCE_NAME = process.env.STORIX_DEV_INSTANCE_NAME || "Dev Server";
 const EXTEND_TAG = "extend-until";
+const DEPLOY_TAG = "deploy-started-at";
 
 let clientPromise = null;
 
@@ -45,6 +46,7 @@ export async function findInstance() {
     publicIp: instance.PublicIpAddress || null,
     launchedAt: new Date(instance.LaunchTime).getTime(),
     extendUntil: parseTime(tagOf(instance, EXTEND_TAG)),
+    deployStartedAt: parseTime(tagOf(instance, DEPLOY_TAG)),
   };
 }
 
