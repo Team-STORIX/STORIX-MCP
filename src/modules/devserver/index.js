@@ -5,8 +5,9 @@ import { findInstance, startInstance, stopInstance, setExtendUntil, explain } fr
 
 export const NAMESPACE = "dev_server";
 
-// 자동 종료 Lambda 의 DEFAULT_HOURS 와 같아야 한다 (scripts/dev-autostop-lambda.mjs).
+// 자동 종료 Lambda 의 DEFAULT_HOURS · DEPLOY_MINUTES 와 같아야 한다 (scripts/dev-autostop-lambda.mjs).
 const DEFAULT_HOURS = 4;
+const DEPLOY_MINUTES = 30;
 const MAX_EXTEND_HOURS = 12;
 
 const HOUR_MS = 3600_000;
@@ -26,10 +27,15 @@ function remaining(ms) {
   return `${Math.floor(minutes / 60)}시간 ${minutes % 60}분 뒤`;
 }
 
-// 자동 종료는 매시 정각에 돈다. 켠 뒤 DEFAULT_HOURS 와 연장해 둔 시각 중 늦은 쪽이
-// 지난 뒤 처음 오는 정각에 꺼진다.
-function autoStopAt({ launchedAt, extendUntil }, now = Date.now()) {
-  const keepUntil = Math.max(now, extendUntil || 0, launchedAt + DEFAULT_HOURS * HOUR_MS);
+// 배포가 켠 서버는 태그 시각이 켜진 시각과 붙어 있다. 사람이 다시 켜면 켜진 시각이 바뀌어 옛 태그는 무시된다.
+const startedByDeploy = ({ launchedAt, deployStartedAt }) =>
+  Boolean(deployStartedAt) && Math.abs(deployStartedAt - launchedAt) < 10 * 60_000;
+
+// 자동 종료는 매시 정각에 돈다. 켠 뒤 기본 유지 시간과 연장해 둔 시각 중 늦은 쪽이
+// 지난 뒤 처음 오는 정각에 꺼진다. 배포가 켠 서버는 기본 유지 시간이 짧다.
+function autoStopAt(instance, now = Date.now()) {
+  const keepMs = startedByDeploy(instance) ? DEPLOY_MINUTES * 60_000 : DEFAULT_HOURS * HOUR_MS;
+  const keepUntil = Math.max(now, instance.extendUntil || 0, instance.launchedAt + keepMs);
   return Math.ceil(keepUntil / HOUR_MS) * HOUR_MS;
 }
 
@@ -78,7 +84,11 @@ export function register(server, { local = true } = {}) {
         lines.push(`  주소       ${BASE_URL}`);
         lines.push(`  퍼블릭 IP  ${instance.publicIp || "없음"} (켤 때마다 바뀝니다)`);
         lines.push(`  자동 종료  ${autoStopText(instance)}`);
-        lines.push("  더 쓰려면 dev_server_extend 로 미룹니다.");
+        if (startedByDeploy(instance) && !(instance.extendUntil > Date.now())) {
+          lines.push("  배포가 켠 상태라 곧 꺼집니다. 쓰려면 dev_server_start 나 dev_server_extend 를 부르세요.");
+        } else {
+          lines.push("  더 쓰려면 dev_server_extend 로 미룹니다.");
+        }
       }
       if (instance.state === "stopped") lines.push("  dev_server_start 로 켭니다.");
       return text(lines.join("\n"));
@@ -91,14 +101,23 @@ export function register(server, { local = true } = {}) {
       title: "dev 서버 켜기",
       description:
         "꺼져 있는 dev 서버를 켠다. 앱이 응답하기까지 1~2분 걸리므로 바로 호출하지 말고 dev_server_status 로 확인한다. " +
-        `켠 뒤 ${DEFAULT_HOURS}시간이 지나면 다음 정각에 자동으로 꺼진다. 더 쓰려면 dev_server_extend 로 미룬다.`,
+        `켠 뒤 ${DEFAULT_HOURS}시간이 지나면 다음 정각에 자동으로 꺼진다. 더 쓰려면 dev_server_extend 로 미룬다. ` +
+          `배포가 켜 둔 서버는 ${DEPLOY_MINUTES}분 뒤 꺼지므로, 쓰려면 이 툴을 불러 시간을 확보한다.`,
       inputSchema: {},
     },
     async () => {
       let instance;
       try {
         instance = await findInstance();
-        if (instance.state === "running") return text("이미 켜져 있습니다.");
+        if (instance.state === "running") {
+          // 배포가 켠 서버는 곧 꺼진다. 켜 달라는 것은 쓰겠다는 뜻이므로 직접 켠 것과 같은 시간을 준다.
+          const until = Date.now() + DEFAULT_HOURS * HOUR_MS;
+          if (startedByDeploy(instance) && until > (instance.extendUntil || 0)) {
+            await setExtendUntil(instance.id, until);
+            instance.extendUntil = until;
+          }
+          return text(`이미 켜져 있습니다. ${autoStopText(instance)} 에 자동으로 꺼집니다.`);
+        }
         if (instance.state === "pending") return text("이미 켜지는 중입니다.");
         if (instance.state === "stopping") {
           return fail("꺼지는 중이라 지금은 켤 수 없습니다. 1분쯤 뒤에 다시 시도하세요.");
