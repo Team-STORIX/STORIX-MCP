@@ -334,6 +334,13 @@ export function diffSpecs(beforeSpec, afterSpec) {
 // 여기 적힌 문구는 모두 이 파일이 직접 만들어 내는 것들이다.
 const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가|목적지 추가|에러코드 추가|에러 사유 변경)/;
 
+// 에러 응답 필드 추가는 공통 에러 봉투가 늘어난 것이라 프론트가 붙일 게 없다
+const ERROR_FIELD_ADDED = /^응답 [45]\d\d 필드 추가/;
+
+function isActionable(note) {
+  return ACTIONABLE.test(note) && !ERROR_FIELD_ADDED.test(note);
+}
+
 // 크롤러 같은 내부 서비스 전용 API. 프론트가 쓰지 않으니 알림의 반영 대상에서 뺀다
 const INTERNAL_PREFIX = "/internal/";
 
@@ -357,7 +364,7 @@ export function summarize(beforeSpec, afterSpec) {
   const { front: diff, internal } = splitInternal(diffSpecs(beforeSpec, afterSpec));
   const breakingOps = diff.changed.filter((c) => c.breaking.length);
   const actionableOps = diff.changed.filter(
-    (c) => !c.breaking.length && c.notes.some((n) => ACTIONABLE.test(n))
+    (c) => !c.breaking.length && c.notes.some(isActionable)
   );
   return {
     diff,
@@ -674,7 +681,7 @@ function changedBlocks(afterSpec, changed) {
   const blocks = [];
   for (const group of groupEntries(changed)) {
     const head = group[0];
-    const detail = [...head.breaking, ...head.notes.filter((n) => ACTIONABLE.test(n))];
+    const detail = [...head.breaking, ...head.notes.filter(isActionable)];
     const mark = head.breaking.length ? ":rotating_light: " : "";
     const lines = [];
 
@@ -714,7 +721,7 @@ export function formatSlackBody(beforeSpec, afterSpec) {
   for (const key of added) {
     blocks.push({ tag: tagOf(afterSpec, key), rank: 1, lines: [opLine(afterSpec, key, "(신규)")] });
   }
-  blocks.push(...changedBlocks(afterSpec, changed));
+  blocks.push(...changedBlocks(afterSpec, changed.filter((c) => c.breaking.length || c.notes.some(isActionable))));
 
   // 중요한 것부터 예산을 쓴다. 담기로 한 것만 태그별로 다시 모아 출력한다.
   const kept = new Map();
