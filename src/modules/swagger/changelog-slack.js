@@ -6,16 +6,24 @@ const MAX_SECTION = 2800;
 const MAX_SECTIONS = 8;
 
 // 태그 묶음 사이(빈 줄)에서 끊는다. 문장 중간에서 끊기면 읽을 수 없다.
+// 묶음 하나가 한도를 넘으면 줄 단위로 한 번 더 나눈다.
 function sections(body) {
   const out = [];
   let cur = "";
-  for (const part of body.split("\n\n")) {
-    if (cur && cur.length + part.length + 2 > MAX_SECTION) {
+  const push = (text, sep) => {
+    if (cur && cur.length + text.length + sep.length > MAX_SECTION) {
       out.push(cur);
-      cur = part;
+      cur = text;
     } else {
-      cur = cur ? `${cur}\n\n${part}` : part;
+      cur = cur ? `${cur}${sep}${text}` : text;
     }
+  };
+  for (const part of body.split("\n\n")) {
+    if (part.length <= MAX_SECTION) {
+      push(part, "\n\n");
+      continue;
+    }
+    part.split("\n").forEach((line, i) => push(line.slice(0, MAX_SECTION), i ? "\n" : "\n\n"));
   }
   if (cur) out.push(cur);
   return out;
