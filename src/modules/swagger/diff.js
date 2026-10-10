@@ -334,9 +334,27 @@ export function diffSpecs(beforeSpec, afterSpec) {
 // 여기 적힌 문구는 모두 이 파일이 직접 만들어 내는 것들이다.
 const ACTIONABLE = /(필드 추가|응답 \d+ (추가|신규)|에러코드 추가|enum 값 추가|파라미터 추가|목적지 추가|에러코드 추가|에러 사유 변경)/;
 
+// 크롤러 같은 내부 서비스 전용 API. 프론트가 쓰지 않으니 알림의 반영 대상에서 뺀다
+const INTERNAL_PREFIX = "/internal/";
+
+function isInternal(key) {
+  return (key.split(" ")[1] || "").startsWith(INTERNAL_PREFIX);
+}
+
+function splitInternal({ added, removed, changed }) {
+  return {
+    front: {
+      added: added.filter((k) => !isInternal(k)),
+      removed: removed.filter((k) => !isInternal(k)),
+      changed: changed.filter((c) => !isInternal(c.operation)),
+    },
+    internal: [...removed, ...added, ...changed.map((c) => c.operation)].filter(isInternal),
+  };
+}
+
 // 개수 세는 곳이 여러 군데면 곧 어긋난다. 한 곳에서만 센다.
 export function summarize(beforeSpec, afterSpec) {
-  const diff = diffSpecs(beforeSpec, afterSpec);
+  const { front: diff, internal } = splitInternal(diffSpecs(beforeSpec, afterSpec));
   const breakingOps = diff.changed.filter((c) => c.breaking.length);
   const actionableOps = diff.changed.filter(
     (c) => !c.breaking.length && c.notes.some((n) => ACTIONABLE.test(n))
@@ -346,6 +364,7 @@ export function summarize(beforeSpec, afterSpec) {
     breaks: diff.removed.length + breakingOps.length,
     added: diff.added.length,
     actionable: actionableOps.length,
+    internal: internal.length,
   };
 }
 
@@ -685,7 +704,8 @@ function changedBlocks(afterSpec, changed) {
 }
 
 export function formatSlackBody(beforeSpec, afterSpec) {
-  const { added, removed, changed } = diffSpecs(beforeSpec, afterSpec);
+  const { front, internal } = splitInternal(diffSpecs(beforeSpec, afterSpec));
+  const { added, removed, changed } = front;
 
   const blocks = [];
   for (const key of removed) {
@@ -722,11 +742,15 @@ export function formatSlackBody(beforeSpec, afterSpec) {
     const extra = droppedErrorCodes ? ` (깨짐·에러코드 ${droppedErrorCodes}건 포함)` : "";
     out.push(`… 그 외 ${dropped}건 생략${extra}. 전체는 \`swagger_diff_spec\` 으로 보세요.`);
   }
+  if (internal.length) {
+    out.push(["*[🔒 내부 API]* 프론트 반영 필요 없음", ...internal.map((k) => `- \`${k}\``), ""].join("\n"));
+  }
   return out.join("\n").trimEnd();
 }
 
 export function formatChangelog(beforeSpec, afterSpec, meta = {}) {
-  const { added, removed, changed } = diffSpecs(beforeSpec, afterSpec);
+  const { front, internal } = splitInternal(diffSpecs(beforeSpec, afterSpec));
+  const { added, removed, changed } = front;
   const breakingOps = changed.filter((c) => c.breaking.length);
   const softOps = changed.filter((c) => !c.breaking.length);
   const needsWork = breakingOps.length + removed.length;
@@ -739,8 +763,10 @@ export function formatChangelog(beforeSpec, afterSpec, meta = {}) {
   lines.push("");
   lines.push(`프론트 수정 필요 ${needsWork} · 신규 ${added.length} · 그 외 ${softOps.length}`);
 
+  const internalLines = internal.length ? ["", RULE, "", "내부 API · 프론트 반영 필요 없음", ...internal.map((k) => `  ${k}`)] : [];
+
   if (!needsWork && !added.length && !softOps.length) {
-    lines.push("", "스펙 변경 없음.");
+    lines.push("", internal.length ? "프론트 반영 필요 없음." : "스펙 변경 없음.", ...internalLines);
     return lines.join("\n");
   }
 
@@ -771,5 +797,6 @@ export function formatChangelog(beforeSpec, afterSpec, meta = {}) {
     g.length > 1 ? groupBlock(beforeSpec, afterSpec, g, lines) : opBlock(beforeSpec, afterSpec, g[0], lines);
   }
 
+  lines.push(...internalLines);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
 }
