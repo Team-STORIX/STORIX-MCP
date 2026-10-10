@@ -11,6 +11,7 @@ description: STORIX 공식 MCP(서버 이름 storix)를 붙이고 쓴다. 최초
 |---|---|---|
 | swagger | `swagger_` | dev Swagger 스펙 조회·호출·버전 비교 |
 | dev_server | `dev_server_` | dev 서버 상태 확인·켜기·끄기 |
+| tunnel | `tunnel_` | 운영 DB(13306) · Grafana(13000) 터널 열기·닫기. `db` 는 사용자 확인 후 |
 
 저장소: `~/Desktop/Coding/MCP/storix-mcp` (독립 git, 원격 없음, 빌드 없음)
 

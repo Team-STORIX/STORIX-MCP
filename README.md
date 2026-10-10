@@ -165,6 +165,18 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 
 EC2 는 각자 AWS 프로필로 부른다. 그 계정이 IAM `developers` 그룹에 들어 있어야 한다.
 
+**tunnel (로컬 전용)**
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `STORIX_TUNNEL_DB_PORT` | `13306` | 운영 DB 터널의 로컬 포트 |
+| `STORIX_TUNNEL_DB_INSTANCE` | `Production Server` | 거쳐 갈 인스턴스의 Name 태그. Env 태그가 `prod` 인 것만 쓴다 |
+| `STORIX_TUNNEL_DB_IDENTIFIER` | `storix-deploy` | RDS 식별자. 주소는 이걸로 조회한다 |
+| `STORIX_TUNNEL_GRAFANA_PORT` | `13000` | Grafana 터널의 로컬 포트 |
+| `STORIX_TUNNEL_GRAFANA_INSTANCE` | `Monitoring Server` | 모니터링 인스턴스의 Name 태그 |
+
+SSM 포트 포워딩이라 `aws` CLI 와 `session-manager-plugin` 이 깔려 있어야 한다.
+
 **HTTP 모드**
 
 | 변수 | 기본값 | 설명 |
@@ -397,6 +409,27 @@ develop 에 머지되면 배포가 dev 를 알아서 켠다. **배포가 켠 서
 자동 종료는 매시 정각에 도는 Lambda `dev-server-auto-stop` 이 한다. 코드는 `scripts/dev-autostop-lambda.mjs` 이고,
 4시간과 30분은 Lambda 환경변수와 `src/modules/devserver/index.js` 두 곳에 같이 적혀 있다.
 
+### 터널 (운영 DB · Grafana)
+
+BE 레포의 `storix-db-tunnel.sh` · `storix-grafana-tunnel.sh` 를 터미널에 띄워 두던 것을 툴로 연다.
+
+```
+그라파나 터널 열어줘
+터널 뭐 열려 있어?
+DB 터널 닫아줘
+```
+
+| 이름 | 로컬 | 경로 |
+|---|---|---|
+| `db` | `127.0.0.1:13306` | Production Server(Env=prod) → RDS `storix-deploy` |
+| `grafana` | `http://localhost:13000` | Monitoring Server 의 3000 |
+
+- 인스턴스 ID · RDS 주소는 다시 만들면 바뀌므로 Name 태그와 RDS 식별자로 그때그때 찾는다. 저장소에는 적지 않는다
+- 터널은 백그라운드로 떠서 `tunnel_close` 할 때까지 남는다. pid · 로그는 `~/.storix-mcp/tunnels/`
+- `aws ssm start-session` 은 `session-manager-plugin` 을 자식으로 띄워, 부모만 끄면 플러그인이 포트를 계속 잡는다.
+  그래서 새 프로세스 그룹으로 띄우고 그룹째 끈다. 스크립트로 직접 연 터널은 포트 번호로 플러그인을 찾아 끈다
+- `db` 는 운영 DB 로 가는 길이라 열기 전에 사용자 확인을 받고, 다 쓰면 닫는다
+
 ### 스냅샷을 어디에 두나
 
 바이트를 읽고 쓰는 부분만 백엔드로 갈라 뒀다. 라벨 규칙과 색인 병합은 그대로다.
@@ -478,6 +511,9 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 | `dev_server_start` | dev 서버 켜기 (로컬) |
 | `dev_server_extend` | 자동 종료 미루기. 기본 2시간, 최대 12시간 (로컬) |
 | `dev_server_stop` | dev 서버 끄기 (로컬) |
+| `tunnel_status` | 운영 DB · Grafana 터널이 열려 있는지 (로컬) |
+| `tunnel_open` | 터널 열기. `db` 는 사용자 확인 후 (로컬) |
+| `tunnel_close` | 터널 닫기. 스크립트로 연 터널도 닫는다 (로컬) |
 
 
 ## 🔒 로컬 전용인 것과 그 이유
@@ -493,6 +529,9 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 
 `dev_server` 도 원격에서 통째로 꺼진다. 각자 AWS 프로필로 EC2 를 직접 불러야
 누가 켜고 껐는지가 CloudTrail 에 사람별로 남는다. 공유 서버에 EC2 권한을 두면 그 구분이 사라진다.
+
+`tunnel` 도 원격에서 통째로 꺼진다. 포트는 툴을 띄운 컴퓨터에 열리므로 공유 서버에서는 쓸 데가 없고,
+운영 DB 로 가는 길을 남에게 열어 줄 이유도 없다.
 
 `metrics` 는 원격에서도 켜둔다. 미리 정의한 집계만 나가서 개인정보가 응답에 안 담기기
 때문이다. 자유 SQL 을 열지 않은 이유가 여기에 있다.
@@ -536,7 +575,8 @@ Lambda 가 맡고, 자격증명과 배포 이력은 AWS 에 둔다.
       ├ swagger · report · flow ──▶ Parameter Store /storix/dev/*   스웨거 계정 (AWS 프로필로 읽기)
       ├ swagger_history ──────────▶ S3 swagger-snapshots/            배포마다 쌓인 스펙 (읽기 전용)
       ├ metrics ──────────────────▶ RDS                              읽기 전용 계정, 미리 정한 집계만
-      └ dev_server ───────────────▶ EC2 Dev Server (Env=dev)         시작 · 연장 · 정지
+      ├ dev_server ───────────────▶ EC2 Dev Server (Env=dev)         시작 · 연장 · 정지
+      └ tunnel ───────────────────▶ SSM 포트 포워딩                   운영 DB(13306) · Grafana(13000)
 
 STORIX-BE CD (develop 머지)
   └ lambda:InvokeFunction ──▶ Lambda storix-spec-changelog (VPC 밖)
