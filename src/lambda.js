@@ -29,7 +29,7 @@ export async function handler(event = {}) {
   const report = formatChangelog(before, spec, { ...meta, title: meta.title || `${previous.label} → ${label}` });
   console.log(report);
 
-  const { breaks, added, actionable } = summarize(before, spec);
+  const { breaks, added, actionable, internal } = summarize(before, spec);
 
   let slack = "미설정";
   if (slackConfigured && !event.noSlack) {
@@ -44,11 +44,12 @@ export async function handler(event = {}) {
       breaks,
       added,
       actionable,
+      internal,
       body: formatSlackBody(before, spec),
     });
     const result = await send(payload);
     slack = result.sent ? "보냄" : `실패: ${result.reason}`;
   }
 
-  return { label, from: previous.label, breaks, added, actionable, slack };
+  return { label, from: previous.label, breaks, added, actionable, internal, slack };
 }

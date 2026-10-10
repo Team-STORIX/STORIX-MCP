@@ -22,7 +22,7 @@ function sections(body) {
 }
 
 // 작업자 표시는 부르는 쪽이 정해서 넘긴다. 이 패키지는 공개라 사람 이름표를 두지 않는다.
-export function buildChangelogPayload({ env, sha, pr, title, author, from, to, breaks, added, actionable, body }) {
+export function buildChangelogPayload({ env, sha, pr, title, author, from, to, breaks, added, actionable, internal = 0, body }) {
   const head = [`*[📋 API 스펙 변경]*`];
   if (title) head.push(`- 작업: ${title}`);
   if (author) head.push(`- 작업자: ${author}`);
@@ -34,19 +34,21 @@ export function buildChangelogPayload({ env, sha, pr, title, author, from, to, b
   const quiet = !breaks && !added && !actionable;
 
   // 자세한 비교는 MCP 로 본다. 여기서는 변경이 있다는 것과 어디가 바뀌었는지만 알린다.
+  // 내부 API(/internal/) 변경은 프론트와 무관해 따로 센다
   const fields = quiet
-    ? [":white_check_mark: *스펙 변경 없음*"]
+    ? [internal ? `:white_check_mark: *프론트 반영 필요 없음* · 내부 API 변경 ${internal}건` : ":white_check_mark: *스펙 변경 없음*"]
     : [
         `:rotating_light: *깨짐:* ${breaks}`,
         `:sparkles: *신규:* ${added}`,
         `:pencil2: *반영 필요:* ${actionable}`,
+        ...(internal ? [`:lock: *내부 API(프론트 무관):* ${internal}`] : []),
       ];
 
   const blocks = [
     { type: "section", text: { type: "mrkdwn", text: [...head, "", ...fields].join("\n") } },
   ];
 
-  if (!quiet && body) {
+  if ((!quiet || internal) && body) {
     const parts = sections(body);
     blocks.push({ type: "divider" });
     for (const part of parts.slice(0, MAX_SECTIONS)) {
@@ -61,7 +63,7 @@ export function buildChangelogPayload({ env, sha, pr, title, author, from, to, b
   }
 
   const summary = quiet
-    ? "API 스펙 변경 없음"
+    ? (internal ? `프론트 반영 필요 없음 · 내부 API 변경 ${internal}건` : "API 스펙 변경 없음")
     : `API 스펙 변경 · 깨짐 ${breaks} · 신규 ${added} · 반영 필요 ${actionable}`;
 
   return { text: summary, blocks };
