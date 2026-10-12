@@ -5,6 +5,11 @@ import { checkSql, checkPlan, MAX_ROWS } from "./guard.js";
 
 export const NAMESPACE = "db";
 
+// 한글 · 한자 · 전각 문자는 터미널에서 두 칸을 차지한다
+const WIDE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
+const width = (s) => [...s].reduce((n, ch) => n + (WIDE.test(ch) ? 2 : 1), 0);
+const pad = (s, w) => s + " ".repeat(Math.max(0, w - width(s)));
+
 // 터미널에서 읽으므로 마크업 없이 표로 그린다. 긴 값(소개문 등)은 잘라 보여준다
 function table(rows, cellMax = 60) {
   if (!rows.length) return "  (결과 없음)";
@@ -15,9 +20,9 @@ function table(rows, cellMax = 60) {
     return one.length > cellMax ? one.slice(0, cellMax - 1) + "…" : one;
   };
   const body = rows.map((r) => cols.map((c) => cell(r[c])));
-  const width = cols.map((c, i) => Math.max(c.length, ...body.map((b) => b[i].length)));
-  const line = (cells) => "  " + cells.map((s, i) => s.padEnd(width[i])).join("  ");
-  return [line(cols), "  " + width.map((w) => "─".repeat(w)).join("  "), ...body.map(line)].join("\n");
+  const widths = cols.map((c, i) => Math.max(width(c), ...body.map((b) => width(b[i]))));
+  const line = (cells) => "  " + cells.map((s, i) => pad(s, widths[i])).join("  ").trimEnd();
+  return [line(cols), "  " + widths.map((w) => "─".repeat(w)).join("  "), ...body.map(line)].join("\n");
 }
 
 function explainError(e) {
