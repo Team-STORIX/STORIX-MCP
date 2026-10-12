@@ -128,3 +128,14 @@ breaking으로 분류: 엔드포인트·필드·응답 상태코드 제거, 타�
 
 `src/http.js`를 띄우면 `/mcp` 하나로 서비스되고, 프론트는 클론 없이 URL만 등록하면 된다.
 이때 ②번 인증이 붙는다. 스모크 검사는 `node smoke-http.mjs` (무인증 401 / 낯선 Origin 403 / healthz 200 / 툴 개수 / 쓰기 차단).
+
+## 8. db 모듈 (prod 읽기 전용 조회)
+
+공개 저장소라 실제 이름은 코드에 없다. 접속 정보는 Parameter Store `/storix/dev/db/{rds-host,user,prod-db,staging-db}` 에서
+각자의 AWS 자격증명으로 읽는다 (정책 `storix-db-reader-connect` = 이 값 읽기 + rds-db:connect, developers · admin 그룹).
+최초 설정 (관리자, 다시 실행해도 됨. 끝에 계정 생성 SQL 이 나오면 DataGrip 에서 마스터로 실행):
+
+    DB_INSTANCE=DB_INSTANCE DB_USER=DB_USER PROD_DB=PROD_DB STAGING_DB=STAGING_DB \
+      bash ~/Desktop/Coding/MCP/storix-mcp/scripts/db-reader-setup.sh
+
+쓸 때는 DB 터널(storix-tunnel)을 열고 `db_tables` → `db_query`.
