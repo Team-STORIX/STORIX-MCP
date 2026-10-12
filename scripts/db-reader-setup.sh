@@ -6,7 +6,8 @@
 # DB 계정은 scripts/db-reader.sql 을 마스터 계정으로 실행해 만든다.
 set -euo pipefail
 
-ACCOUNT=ACCOUNT_ID
+# 계정 ID 는 저장소에 적지 않는다. 실행하는 사람의 자격증명에서 읽는다 (AWS_ACCOUNT_ID 로 직접 줄 수도 있다)
+ACCOUNT=${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}
 REGION=ap-northeast-2
 DB_INSTANCE=storix-deploy
 DB_USER=storix_reader

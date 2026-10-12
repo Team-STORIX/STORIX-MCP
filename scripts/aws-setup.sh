@@ -3,7 +3,8 @@
 # 계정에 리소스를 만드므로 내용을 읽고 직접 실행한다.
 set -euo pipefail
 
-ACCOUNT=ACCOUNT_ID
+# 계정 ID 는 저장소에 적지 않는다. 실행하는 사람의 자격증명에서 읽는다 (AWS_ACCOUNT_ID 로 직접 줄 수도 있다)
+ACCOUNT=${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}
 REGION=ap-northeast-2
 FUNCTION=storix-spec-changelog
 BUCKET=${BUCKET:?스냅샷을 둘 S3 버킷 이름을 BUCKET 으로 넘겨라}
