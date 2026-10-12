@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { text, fail, namespaced } from "../../shared/mcp.js";
-import { configured, target, DATABASES, withConnection } from "./conn.js";
+import { target, DATABASES, withConnection } from "./conn.js";
 import { checkSql, checkPlan, MAX_ROWS } from "./guard.js";
 
 export const NAMESPACE = "db";
@@ -20,15 +20,13 @@ function table(rows, cellMax = 60) {
   return [line(cols), "  " + width.map((w) => "─".repeat(w)).join("  "), ...body.map(line)].join("\n");
 }
 
-const notConfigured = () =>
-  fail(
-    "DB 조회 설정이 없습니다. STORIX_READER_RDS_HOST 를 넣고, DB 터널(127.0.0.1:13306)을 연 뒤 다시 부르세요. " +
-      "IAM 권한(rds-db:connect)이 없으면 접속이 거부됩니다."
-  );
-
 function explainError(e) {
   const m = String(e?.message || e);
-  if (/ECONNREFUSED/.test(m)) return "DB 터널이 닫혀 있습니다. storix-tunnel 로 운영 DB 터널(127.0.0.1:13306)을 여세요.";
+  if (/Could not load credentials|CredentialsProviderError|Token is expired|SSO session/i.test(m))
+    return "AWS 자격증명이 없습니다. aws configure (또는 aws sso login) 후 다시 부르세요. 접속 정보와 IAM 토큰을 각자의 자격증명으로 받습니다.";
+  if (/Parameter Store 에 없는 값|AccessDenied.*ssm|ssm:GetParameters/i.test(m))
+    return `DB 접속 정보를 Parameter Store 에서 읽지 못했습니다. DB 조회 정책이 붙은 IAM 사용자인지 확인하세요. (${m})`;
+  if (/ECONNREFUSED/.test(m)) return "DB 터널이 닫혀 있습니다. storix-tunnel 로 운영 DB 터널을 여세요.";
   if (/Access denied/.test(m)) return `접속이 거부됐습니다. IAM 정책에 rds-db:connect 가 있는지, 토큰을 받은 AWS 프로필이 맞는지 확인하세요. (${m})`;
   if (/max_execution_time|maximum statement execution time/i.test(m)) return "실행 시간 제한(5초)을 넘어 중단했습니다. 범위를 좁혀 주세요.";
   if (/SELECT command denied/.test(m)) return `조회가 허용되지 않은 테이블입니다. (${m})`;
@@ -39,7 +37,10 @@ export function register(server, { local = true } = {}) {
   // 각자의 AWS 자격증명으로 IAM 토큰을 받으므로 여러 사람이 함께 쓰는 원격 모드에서는 띄우지 않는다
   if (!local) return;
   const tool = namespaced(server, NAMESPACE);
-  const dbArg = z.enum(Object.keys(DATABASES)).default("prod").describe("prod = 서비스 DB, staging = 크롤러 검수 DB");
+  const dbArg = z
+    .enum(Object.keys(DATABASES))
+    .default("prod")
+    .describe(Object.entries(DATABASES).map(([k, v]) => `${k} = ${v}`).join(", "));
 
   tool(
     "tables",
@@ -50,16 +51,15 @@ export function register(server, { local = true } = {}) {
       inputSchema: { database: dbArg, table: z.string().optional().describe("이 테이블의 칼럼 · 인덱스만") },
     },
     async ({ database, table: only }) => {
-      if (!configured) return notConfigured();
-      const schema = DATABASES[database];
       try {
-        return await withConnection(schema, async (conn) => {
+        return await withConnection(database, async (conn, cfg) => {
+          const schema = cfg[database];
           const [tables] = await conn.query(
             "SELECT TABLE_NAME AS `테이블`, TABLE_ROWS AS `대략 행 수` FROM information_schema.TABLES " +
               "WHERE TABLE_SCHEMA = ? AND (? IS NULL OR TABLE_NAME = ?) ORDER BY TABLE_NAME",
             [schema, only ?? null, only ?? null]
           );
-          const out = [`${database} (${schema}) — ${target}`, "", table(tables)];
+          const out = [`${database} (${schema}) — ${target(cfg)}`, "", table(tables)];
           if (only) {
             const [cols] = await conn.query(
               "SELECT COLUMN_NAME AS `칼럼`, COLUMN_TYPE AS `타입`, IS_NULLABLE AS `NULL`, COLUMN_KEY AS `키` " +
@@ -96,11 +96,10 @@ export function register(server, { local = true } = {}) {
       },
     },
     async ({ sql, database }) => {
-      if (!configured) return notConfigured();
       const checked = checkSql(sql);
       if (checked.error) return fail(checked.error);
       try {
-        return await withConnection(DATABASES[database], async (conn) => {
+        return await withConnection(database, async (conn) => {
           const [plan] = await conn.query(`EXPLAIN ${checked.sql}`);
           const reason = checkPlan(plan);
           if (reason) return fail(reason);
