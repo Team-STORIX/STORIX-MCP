@@ -148,10 +148,9 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `STORIX_READER_RDS_HOST` | (없음) | RDS 엔드포인트. IAM 토큰 서명에 쓴다. 없으면 db 툴이 꺼진 것처럼 안내만 한다 |
+| (없음) | | RDS 주소 · 계정 · 스키마 이름은 Parameter Store `<STORIX_PARAM_PREFIX>/db/*` 에서 각자의 AWS 자격증명으로 읽는다. 따로 넣을 값이 없다 |
+| `STORIX_READER_RDS_HOST` · `STORIX_READER_USER` · `STORIX_READER_PROD_DB` · `STORIX_READER_STAGING_DB` | (없음) | 넷 다 주면 Parameter Store 대신 이 값을 쓴다 |
 | `STORIX_READER_HOST` / `STORIX_READER_PORT` | `127.0.0.1` · `13306` | 실제로 붙는 곳 (SSM 터널) |
-| `STORIX_READER_USER` | `DB_USER` | 읽기 전용 DB 계정 |
-| `STORIX_READER_PROD_DB` / `STORIX_READER_STAGING_DB` | `PROD_DB` · `STAGING_DB` | 조회할 스키마 |
 | `STORIX_READER_TIMEOUT_MS` | `5000` | 연결 · 실행 시간 제한 |
 | `AWS_REGION` | `ap-northeast-2` | IAM 토큰 리전. 자격증명은 AWS SDK 기본 규칙대로(AWS_PROFILE 포함) 읽는다 |
 
@@ -422,8 +421,10 @@ works 15437 의 작가 칸 보여줘
 `database` 인자로 서비스 DB(`prod`)와 크롤러 검수 DB(`staging`)를 고른다.
 
 - **권한은 IAM 으로 정한다.** 비밀번호 대신 각자의 AWS 자격증명으로 RDS IAM 인증 토큰을 받는다.
-  `rds-db:connect` 정책(`storix-db-reader-connect`)이 붙은 사람만 접속되고, 누가 붙었는지 CloudTrail 에 남는다
-- **계정은 읽기 전용** `DB_USER`. 작품 · 해시태그 · 별칭 · 리뷰 · 토픽룸 테이블과 검수 DB 에만 SELECT 가 있다.
+  정책(`storix-db-reader-connect`)이 붙은 사람만 접속 정보를 읽고 접속할 수 있고, 누가 붙었는지 CloudTrail 에 남는다.
+  `aws configure` 를 안 했으면 db 툴은 쓸 수 없다
+- **접속 정보는 코드에 없다.** RDS 주소 · 계정 · 스키마 이름은 Parameter Store 에서 읽는다
+- **계정은 읽기 전용**. 작품 · 해시태그 · 별칭 · 리뷰 · 토픽룸 테이블과 검수 DB 에만 SELECT 가 있다.
   user 계열 · 채팅 · 신고 · 성인인증 · 푸시 기기 · 알림 테이블은 권한이 없다
 - **운영에 부담이 되는 조회는 보내기 전에 막는다**
   - SELECT 한 문장만. 쓰기, `FOR UPDATE` · `FOR SHARE` · `LOCK IN SHARE MODE`, INTO, SLEEP · GET_LOCK 같은 함수는 거부
@@ -432,7 +433,8 @@ works 15437 의 작가 칸 보여줘
   - 연결은 질의마다 열고 닫는다. 계정당 동시 연결은 3개까지
 - RDS 는 사설망이라 **DB 터널(127.0.0.1:13306)을 열어야** 붙는다
 
-처음 한 번은 `scripts/db-reader-setup.sh`(RDS IAM 인증 켜기 · 접속 정책)와 `scripts/db-reader.sql`(계정 · 권한)을 실행한다.
+처음 한 번은 관리자가 `scripts/db-reader-setup.sh` 를 실행한다. RDS IAM 인증을 켜고, 접속 정보를 Parameter Store 에 넣고,
+정책을 그룹에 붙인 뒤, 읽기 전용 계정을 만드는 SQL 을 출력한다 (RDS 마스터 계정으로 실행). 실제 이름은 실행할 때 환경변수로 준다.
 
 ### 스냅샷을 어디에 두나
 
