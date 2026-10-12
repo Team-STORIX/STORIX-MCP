@@ -12,7 +12,8 @@ REGION=ap-northeast-2
 DB_INSTANCE=DB_INSTANCE
 DB_USER=DB_USER
 POLICY_NAME=storix-db-reader-connect
-GROUPS=(developers admin)
+# GROUPS 는 bash 예약 변수(현재 사용자의 그룹 ID)라 다른 이름을 쓴다
+IAM_GROUPS=(developers admin)
 
 echo "== 1) RDS IAM DB 인증 켜기"
 aws rds modify-db-instance --region "$REGION" --db-instance-identifier "$DB_INSTANCE" \
@@ -25,12 +26,13 @@ RESOURCE_ID=$(aws rds describe-db-instances --region "$REGION" --db-instance-ide
 
 echo "== 2) 접속 정책 (이 DB 의 $DB_USER 로만)"
 POLICY_ARN=arn:aws:iam::${ACCOUNT}:policy/${POLICY_NAME}
-aws iam create-policy --policy-name "$POLICY_NAME" --policy-document "{
+# 다시 실행해도 되게 정책이 이미 있으면 만들지 않는다
+aws iam get-policy --policy-arn "$POLICY_ARN" >/dev/null 2>&1 || aws iam create-policy --policy-name "$POLICY_NAME" --policy-document "{
   \"Version\":\"2012-10-17\",
   \"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"rds-db:connect\",
     \"Resource\":\"arn:aws:rds-db:${REGION}:${ACCOUNT}:dbuser:${RESOURCE_ID}/${DB_USER}\"}]
 }" >/dev/null
-for g in "${GROUPS[@]}"; do
+for g in "${IAM_GROUPS[@]}"; do
   aws iam attach-group-policy --group-name "$g" --policy-arn "$POLICY_ARN"
 done
 
