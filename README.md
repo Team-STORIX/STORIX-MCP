@@ -37,6 +37,7 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 | `auth` | 관리자·테스터 로그인, 토큰 관리 | **아니오, 로컬 전용** |
 | `flow` | 사용자 흐름 시나리오를 API 로 돌리고 판정 | 예 |
 | `mobile` | 앱 화면 띄우기, Maestro 안내 | **아니오, 로컬 전용** |
+| `db` | 운영 DB 읽기 전용 조회 (IAM 인증) | **아니오, 로컬 전용** |
 
 
 
@@ -142,6 +143,17 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 | `STORIX_DB_USER` / `STORIX_DB_PASSWORD` | (없음) | **읽기 전용 계정만 쓸 것** |
 | `STORIX_DB_NAME` | (없음) | 스키마 이름 |
 | `STORIX_DB_TIMEOUT_MS` | `5000` | 이 시간을 넘는 질의는 서버가 죽인다 |
+
+**db**
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `STORIX_READER_RDS_HOST` | (없음) | RDS 엔드포인트. IAM 토큰 서명에 쓴다. 없으면 db 툴이 꺼진 것처럼 안내만 한다 |
+| `STORIX_READER_HOST` / `STORIX_READER_PORT` | `127.0.0.1` · `13306` | 실제로 붙는 곳 (SSM 터널) |
+| `STORIX_READER_USER` | `storix_reader` | 읽기 전용 DB 계정 |
+| `STORIX_READER_PROD_DB` / `STORIX_READER_STAGING_DB` | `storix_prod_database` · `storix_staging_prod` | 조회할 스키마 |
+| `STORIX_READER_TIMEOUT_MS` | `5000` | 연결 · 실행 시간 제한 |
+| `AWS_PROFILE` / `AWS_REGION` | 기본 프로필 · `ap-northeast-2` | IAM 토큰을 받을 자격증명 |
 
 **flow**
 
@@ -397,6 +409,31 @@ develop 에 머지되면 배포가 dev 를 알아서 켠다. **배포가 켠 서
 자동 종료는 매시 정각에 도는 Lambda `dev-server-auto-stop` 이 한다. 코드는 `scripts/dev-autostop-lambda.mjs` 이고,
 4시간과 30분은 Lambda 환경변수와 `src/modules/devserver/index.js` 두 곳에 같이 적혀 있다.
 
+### 운영 DB 조회하기
+
+작품 데이터를 점검할 때 관리자 API 를 수천 번 부르지 않고 DB 에 직접 묻는다. **조회만** 된다.
+
+```
+works_platform 에서 리디 링크가 비어 있는 웹툰 몇 개야?
+works 15437 의 작가 칸 보여줘
+```
+
+`db_tables` 로 테이블 · 칼럼 · 인덱스를 먼저 보고 `db_query` 로 SELECT 를 보낸다.
+`database` 인자로 서비스 DB(`prod`)와 크롤러 검수 DB(`staging`)를 고른다.
+
+- **권한은 IAM 으로 정한다.** 비밀번호 대신 각자의 AWS 자격증명으로 RDS IAM 인증 토큰을 받는다.
+  `rds-db:connect` 정책(`storix-db-reader-connect`)이 붙은 사람만 접속되고, 누가 붙었는지 CloudTrail 에 남는다
+- **계정은 읽기 전용** `storix_reader`. 작품 · 해시태그 · 별칭 · 리뷰 · 토픽룸 테이블과 검수 DB 에만 SELECT 가 있다.
+  user 계열 · 채팅 · 신고 · 성인인증 · 푸시 기기 · 알림 테이블은 권한이 없다
+- **운영에 부담이 되는 조회는 보내기 전에 막는다**
+  - SELECT 한 문장만. 쓰기, `FOR UPDATE` · `FOR SHARE` · `LOCK IN SHARE MODE`, `INTO`, `SLEEP` · `GET_LOCK` 같은 함수는 거부
+  - `EXPLAIN` 으로 실행 계획을 먼저 보고, 1,000행 넘는 테이블을 인덱스 없이 훑는 조회(전체 스캔 · 인덱스 전체 스캔)는 거부
+  - 세션은 읽기 전용 · READ COMMITTED(갭 락 없음), 실행 5초 · 락 대기 2초, 결과 최대 500행
+  - 연결은 질의마다 열고 닫는다. 계정당 동시 연결은 3개까지
+- RDS 는 사설망이라 **DB 터널(127.0.0.1:13306)을 열어야** 붙는다
+
+처음 한 번은 `scripts/db-reader-setup.sh`(RDS IAM 인증 켜기 · 접속 정책)와 `scripts/db-reader.sql`(계정 · 권한)을 실행한다.
+
 ### 스냅샷을 어디에 두나
 
 바이트를 읽고 쓰는 부분만 백엔드로 갈라 뒀다. 라벨 규칙과 색인 병합은 그대로다.
@@ -478,6 +515,8 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 | `dev_server_start` | dev 서버 켜기 (로컬) |
 | `dev_server_extend` | 자동 종료 미루기. 기본 2시간, 최대 12시간 (로컬) |
 | `dev_server_stop` | dev 서버 끄기 (로컬) |
+| `db_tables` | 조회할 수 있는 테이블 · 칼럼 · 인덱스 · 대략 행 수 (로컬) |
+| `db_query` | 운영 DB 읽기 전용 SELECT (로컬) |
 
 
 ## 🔒 로컬 전용인 것과 그 이유
@@ -493,6 +532,9 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 
 `dev_server` 도 원격에서 통째로 꺼진다. 각자 AWS 프로필로 EC2 를 직접 불러야
 누가 켜고 껐는지가 CloudTrail 에 사람별로 남는다. 공유 서버에 EC2 권한을 두면 그 구분이 사라진다.
+
+`db` 도 원격에서 통째로 꺼진다. 각자의 AWS 자격증명으로 IAM 토큰을 받아야 권한이 사람별로 갈리고
+CloudTrail 에 누가 조회했는지 남는다. 공유 서버에 토큰을 받을 권한을 두면 접속한 모두가 운영 DB 를 보게 된다.
 
 `metrics` 는 원격에서도 켜둔다. 미리 정의한 집계만 나가서 개인정보가 응답에 안 담기기
 때문이다. 자유 SQL 을 열지 않은 이유가 여기에 있다.
@@ -578,6 +620,7 @@ STORIX-MCP/
   │       ├── flow/               # 시나리오 실행 · judge
   │       ├── mobile/             # 딥링크 · 기기 점검 (로컬 전용)
   │       ├── devserver/          # EC2 시작 · 연장 · 정지 (로컬 전용)
+  │       ├── db/                 # 운영 DB 읽기 전용 조회 · SQL 검사 (로컬 전용)
   │       └── bridge/             # 각자 만든 MCP 묶기 (로컬 전용)
   │
   ├── flows/                      # 사용자 흐름 시나리오 (*.md)
