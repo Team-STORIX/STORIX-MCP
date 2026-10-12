@@ -25,6 +25,9 @@ jobs:
             node --check "$f" || exit 1
           done
 
+      - name: 테스트
+        run: npm test
+
       # 실제로 서버를 띄워 툴과 프롬프트가 등록되는지 본다.
       # 모듈 하나가 깨지면 등록 단계에서 죽으므로 여기서 잡힌다.
       - name: 기동 확인
@@ -46,7 +49,7 @@ jobs:
             console.log(`툴 ${tools.length}개 · 프롬프트 ${prompts.length}개`);
             if (!tools.length) { console.error("툴이 하나도 등록되지 않았습니다"); process.exit(1); }
             if (!prompts.length) { console.error("프롬프트가 등록되지 않았습니다"); process.exit(1); }
-            const bad = tools.filter((t) => !/^(swagger|auth|report|metrics|mobile|flow|dev_server)_/.test(t.name));
+            const bad = tools.filter((t) => !/^(swagger|auth|report|metrics|mobile|flow|dev_server|db)_/.test(t.name));
             if (bad.length) { console.error("모듈 접두사가 없는 툴: " + bad.map((t) => t.name).join(", ")); process.exit(1); }
           '
 
