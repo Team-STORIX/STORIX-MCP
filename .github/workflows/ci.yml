@@ -6,6 +6,54 @@ on:
     branches: [main]
 
 jobs:
+  # 공개 저장소라 운영 값(DB · 계정 · 인스턴스 이름, 계정 ID 등)이 들어오면 막는다.
+  # 목록 자체도 공개되면 안 되므로 저장소 Secret(PUBLIC_REPO_BLOCKLIST, 한 줄에 하나)에 둔다.
+  # 머지 커밋으로 합치므로 지금 파일뿐 아니라 이번에 들어오는 커밋들의 변경 · 메시지까지 본다.
+  # 어느 값이 걸렸는지는 로그에 남기지 않고 파일 이름만 보여준다.
+  blocklist:
+    name: 운영 값 노출 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 운영 값 검사
+        env:
+          BLOCKLIST: ${{ secrets.PUBLIC_REPO_BLOCKLIST }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BLOCKLIST" ]; then
+            # 포크에서 온 PR 은 Secret 을 못 받는다. 머지 뒤 main 푸시에서 다시 본다
+            echo "::warning::PUBLIC_REPO_BLOCKLIST 를 읽지 못해 건너뜁니다"
+            exit 0
+          fi
+          printf '%s\n' "$BLOCKLIST" | grep -v '^#' | grep -v '^$' > /tmp/blocklist
+          fail=0
+
+          files=$(git grep -lFf /tmp/blocklist -- . || true)
+          if [ -n "$files" ]; then
+            echo "::error::지금 파일에 운영 값이 있습니다"
+            echo "$files"
+            fail=1
+          fi
+
+          if git cat-file -e "$BASE" 2>/dev/null && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
+            commits=$(git rev-list "$BASE..$HEAD")
+            for c in $commits; do
+              hit=$(git show --format= -U0 --no-color "$c" | grep '^+' | grep -v '^+++' | grep -cFf /tmp/blocklist || true)
+              msg=$(git log -1 --format=%B "$c" | grep -cFf /tmp/blocklist || true)
+              if [ "$hit" != "0" ] || [ "$msg" != "0" ]; then
+                echo "::error::커밋 $(git log -1 --format='%h %s' "$c") 에 운영 값이 있습니다 (변경 ${hit}줄 · 메시지 ${msg}줄)"
+                fail=1
+              fi
+            done
+          fi
+
+          [ "$fail" = 0 ] && echo "운영 값 $(wc -l < /tmp/blocklist)개 검사 통과"
+          exit $fail
+
   check:
     name: 구문 검사와 기동 확인
     runs-on: ubuntu-latest
