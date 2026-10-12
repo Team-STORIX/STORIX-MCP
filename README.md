@@ -153,7 +153,7 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 | `STORIX_READER_USER` | `storix_reader` | 읽기 전용 DB 계정 |
 | `STORIX_READER_PROD_DB` / `STORIX_READER_STAGING_DB` | `storix_prod_database` · `storix_staging_prod` | 조회할 스키마 |
 | `STORIX_READER_TIMEOUT_MS` | `5000` | 연결 · 실행 시간 제한 |
-| `AWS_PROFILE` / `AWS_REGION` | 기본 프로필 · `ap-northeast-2` | IAM 토큰을 받을 자격증명 |
+| `AWS_REGION` | `ap-northeast-2` | IAM 토큰 리전. 자격증명은 AWS SDK 기본 규칙대로(AWS_PROFILE 포함) 읽는다 |
 
 **flow**
 
@@ -426,8 +426,8 @@ works 15437 의 작가 칸 보여줘
 - **계정은 읽기 전용** `storix_reader`. 작품 · 해시태그 · 별칭 · 리뷰 · 토픽룸 테이블과 검수 DB 에만 SELECT 가 있다.
   user 계열 · 채팅 · 신고 · 성인인증 · 푸시 기기 · 알림 테이블은 권한이 없다
 - **운영에 부담이 되는 조회는 보내기 전에 막는다**
-  - SELECT 한 문장만. 쓰기, `FOR UPDATE` · `FOR SHARE` · `LOCK IN SHARE MODE`, `INTO`, `SLEEP` · `GET_LOCK` 같은 함수는 거부
-  - `EXPLAIN` 으로 실행 계획을 먼저 보고, 1,000행 넘는 테이블을 인덱스 없이 훑는 조회(전체 스캔 · 인덱스 전체 스캔)는 거부
+  - SELECT 한 문장만. 쓰기, `FOR UPDATE` · `FOR SHARE` · `LOCK IN SHARE MODE`, INTO, SLEEP · GET_LOCK 같은 함수는 거부
+  - EXPLAIN 으로 실행 계획을 먼저 보고, 1,000행 넘는 테이블을 인덱스 없이 훑는 조회(전체 스캔 · 인덱스 전체 스캔)는 거부
   - 세션은 읽기 전용 · READ COMMITTED(갭 락 없음), 실행 5초 · 락 대기 2초, 결과 최대 500행
   - 연결은 질의마다 열고 닫는다. 계정당 동시 연결은 3개까지
 - RDS 는 사설망이라 **DB 터널(127.0.0.1:13306)을 열어야** 붙는다
