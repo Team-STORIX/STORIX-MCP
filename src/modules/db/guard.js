@@ -60,5 +60,5 @@ export function checkPlan(rows) {
   const what = heavy
     .map((r) => `${r.table} (${r.type === "ALL" ? "전체 스캔" : "인덱스 전체 스캔"}, 약 ${r.rows}행)`)
     .join(", ");
-  return `인덱스를 타지 않는 조회라 보내지 않았습니다: ${what}. WHERE 에 인덱스가 걸린 칼럼(작품 ID · 플랫폼 · 링크 등)을 넣어 범위를 좁혀 주세요.`;
+  return `인덱스를 타지 않는 조회라 보내지 않았습니다: ${what}. WHERE 에 인덱스가 걸린 칼럼(작품 ID · 정규화 작품명 normalized_name · 작가 · 플랫폼 링크 등, db_tables 로 확인)을 넣어 범위를 좁혀 주세요.`;
 }
