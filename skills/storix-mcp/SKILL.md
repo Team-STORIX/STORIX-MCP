@@ -133,9 +133,10 @@ breaking으로 분류: 엔드포인트·필드·응답 상태코드 제거, 타�
 
 공개 저장소라 실제 이름은 코드에 없다. 접속 정보는 Parameter Store `/storix/dev/db/{rds-host,user,prod-db,staging-db}` 에서
 각자의 AWS 자격증명으로 읽는다 (정책 `storix-db-reader-connect` = 이 값 읽기 + rds-db:connect, developers · admin 그룹).
-최초 설정 (관리자, 다시 실행해도 됨. 끝에 계정 생성 SQL 이 나오면 DataGrip 에서 마스터로 실행):
+최초 설정 (관리자, 다시 실행해도 됨. 끝에 계정 생성 SQL 이 나오면 DataGrip 에서 마스터로 실행).
+실제 이름은 공개 저장소에 적지 않는다. 관리자에게 받는다:
 
-    DB_INSTANCE=DB_INSTANCE DB_USER=DB_USER PROD_DB=PROD_DB STAGING_DB=STAGING_DB \
+    DB_INSTANCE=<RDS 인스턴스> DB_USER=<읽기 전용 계정> PROD_DB=<서비스 스키마> STAGING_DB=<검수 스키마> \
       bash ~/Desktop/Coding/MCP/storix-mcp/scripts/db-reader-setup.sh
 
 쓸 때는 DB 터널(storix-tunnel)을 열고 `db_tables` → `db_query`.
