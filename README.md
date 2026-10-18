@@ -279,13 +279,14 @@ tester  auth_signup_tester {nickName, favoriteGenreList}
 `.storix-mcp.json` 에 계정이 없으면 `auth_login` 이 각자의 AWS 프로필로 Parameter Store 에서 읽는다.
 파일에 계정을 둔 사람은 지금처럼 파일 계정을 쓴다.
 
-| 계정 | 경로 (`STORIX_PARAM_PREFIX` 아래) | 누가 읽나 |
+| 계정 | 경로 (`STORIX_PARAM_PREFIX` 아래) | 누가 넣나 |
 |---|---|---|
-| tester | `auth/tester/pending-id` | 팀이 같이 쓰는 계정 하나 |
-| admin | `auth/admin/<IAM 사용자 이름>/email` · `password` | 각자 가입한 계정. IAM 정책을 `${aws:username}` 으로 묶어 자기 것만 읽고 쓴다 |
+| tester | `auth/tester/<IAM 사용자 이름>/pending-id` | 관리자가 승인받은 pendingId 를 사람마다 나눠 넣는다 |
+| admin | `auth/admin/<IAM 사용자 이름>/email` · `password` | 각자 가입한 계정을 본인이 넣는다 |
 
-- 값은 `SecureString` 으로 넣는다. 비밀번호는 셸 기록에 남지 않게 `read -s` 로 받아 넣는다
-- IAM 사용자 이름은 `sts get-caller-identity` 로 찾는다. 역할(assumed-role)로 들어온 프로필이면 admin 은 파일로 쓴다
+- IAM 정책을 `${aws:username}` 으로 묶어 자기 경로만 읽고 쓴다. 남의 계정은 못 본다
+- 값은 `SecureString` 으로 넣는다. 비밀값은 셸 기록에 남지 않게 `read -s` 로 받아 넣는다
+- IAM 사용자 이름은 `sts get-caller-identity` 로 찾는다. 역할(assumed-role)로 들어온 프로필이면 파일로 쓴다
 - 처음 한 번은 관리자가 `scripts/auth-params-setup.sh` 를 실행한다. 정책(`storix-mcp-auth-params`)을 developers · admin 그룹에 붙이고,
   값을 넣는 명령을 출력한다. 값 자체는 스크립트가 넣지 않는다
 
