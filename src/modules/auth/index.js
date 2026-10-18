@@ -4,6 +4,7 @@ import { setSession, getSession, clearSession, expiryOf, remainingText } from ".
 import { BASE_URL } from "../../shared/config.js";
 import { readCredentials, writeCredentials, ensureIgnored, credentialsPath, FILE_NAME } from "./credentials.js";
 import { redact } from "../../shared/redact.js";
+import { readAccount, paramPaths } from "./params.js";
 
 export const NAMESPACE = "auth";
 
@@ -31,15 +32,25 @@ function apiError(prefix, { status, json, raw }) {
   return fail(`${prefix}: HTTP ${status}${code} ${message}`);
 }
 
-async function issueTokens(role, creds) {
+async function issueTokens(role, account) {
   if (role === "admin") {
-    const { email, password } = creds.admin || {};
+    const { email, password } = account || {};
     if (!email || !password) return { missing: "admin 계정(email, password)" };
     return { result: await post("/api/v1/auth/admin/login", { email, password }) };
   }
-  const { pendingId } = creds.tester || {};
+  const { pendingId } = account || {};
   if (!pendingId) return { missing: "tester 계정(pendingId)" };
   return { result: await post("/api/v1/auth/tester/login", { pendingId }) };
+}
+
+// 파일에 있으면 파일, 없으면 Parameter Store. 개인 계정을 파일에 둔 사람은 지금처럼 쓴다
+async function findAccount(role, creds) {
+  if (creds[role]) return { account: creds[role], source: FILE_NAME };
+  try {
+    return { account: await readAccount(role), source: "Parameter Store" };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 export function register(server, { local = true } = {}) {
@@ -108,23 +119,37 @@ export function register(server, { local = true } = {}) {
       title: "로그인",
       description:
         "저장된 계정으로 토큰을 발급받아 들고 있는다. 이후 swagger_call_api가 이 토큰을 자동으로 쓴다. " +
+        "계정은 .storix-mcp.json 에서 먼저 찾고, 없으면 각자의 AWS 프로필로 Parameter Store 에서 읽는다. " +
         "토큰은 이 프로세스 메모리에만 있고 파일로 남기지 않는다.",
       inputSchema: {
-        as: z.enum(ROLES).optional().describe("생략하면 저장된 계정 중 admin 우선"),
+        as: z.enum(ROLES).optional().describe("생략하면 admin 우선, admin 계정이 없으면 tester"),
       },
     },
     async ({ as }) => {
       const creds = await readCredentials();
-      const role = as || (creds.admin ? "admin" : creds.tester ? "tester" : null);
+      const tried = [];
+      let role, found;
+      // 파일에 있는 계정을 먼저 본다. 파일에 tester 만 둔 사람이 갑자기 admin 으로 들어가지 않게
+      const order = as ? [as] : [...ROLES.filter((r) => creds[r]), ...ROLES.filter((r) => !creds[r])];
+      for (const r of order) {
+        found = await findAccount(r, creds);
+        if (found.account) {
+          role = r;
+          break;
+        }
+        tried.push(`  ${r}  ${found.error}`);
+      }
       if (!role) {
+        const paths = paramPaths();
         return fail(
-          `등록된 계정이 없습니다 (${credentialsPath()}).\n` +
-            `auth_setup으로 admin 또는 tester 계정을 먼저 넣으세요.`
+          `쓸 계정을 찾지 못했습니다.\n${tried.join("\n")}\n\n` +
+            `- 파일: auth_setup으로 넣으세요 (${credentialsPath()})\n` +
+            `- Parameter Store: tester ${paths.tester}, admin ${paths.admin}`
         );
       }
 
-      const { missing, result } = await issueTokens(role, creds);
-      if (missing) return fail(`${missing}가 저장돼 있지 않습니다. auth_setup으로 넣으세요.`);
+      const { missing, result } = await issueTokens(role, found.account);
+      if (missing) return fail(`${missing}가 ${found.source}에 다 들어 있지 않습니다.`);
       if (!result.ok) {
         const denied = role === "tester" && result.status === 403;
         const failure = apiError(`${role} 로그인 실패`, result);
@@ -139,7 +164,10 @@ export function register(server, { local = true } = {}) {
 
       const expiresAt = expiryOf(tokens.accessToken);
       setSession({ role, ...tokens, expiresAt });
-      return text(`${role}로 로그인했습니다. accessToken ${remainingText(expiresAt)}.\n이제 swagger_call_api가 이 토큰을 자동으로 씁니다.`);
+      return text(
+        `${role}로 로그인했습니다 (계정: ${found.source}). accessToken ${remainingText(expiresAt)}.\n` +
+          `이제 swagger_call_api가 이 토큰을 자동으로 씁니다.`
+      );
     }
   );
 
@@ -195,7 +223,7 @@ export function register(server, { local = true } = {}) {
 
       const lines = [
         `자격증명 파일  ${credentialsPath()}`,
-        `저장된 계정    ${saved.length ? saved.join(", ") : "없음"}`,
+        `저장된 계정    ${saved.length ? saved.join(", ") : "없음"} (없는 계정은 auth_login 때 Parameter Store 에서 찾음)`,
         session
           ? `로그인         ${session.role} · accessToken ${remainingText(session.expiresAt)}`
           : "로그인         안 됨",
