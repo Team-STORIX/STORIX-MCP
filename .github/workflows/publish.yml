@@ -1,18 +1,42 @@
 name: STORIX CD - Publish to npm
 
+# main 에 Release 커밋(squash, 'Release vX.Y.Z (#N)')이 들어오면 태그 · GitHub Release 를 만들고 npm 에 올린다 (#80).
+# 기본 토큰으로 만든 릴리스는 다른 워크플로를 깨우지 않아 한 파일에서 이어서 한다.
+# Trusted Publishing 이 이 파일 이름(publish.yml)으로 등록돼 있어 이름을 바꾸지 않는다.
+# 수동 실행(workflow_dispatch)은 태그 없이 지금 package.json 버전을 다시 올린다 (배포만 실패했을 때).
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
+  tag:
+    name: 태그 · GitHub Release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release 커밋이면 태그 · 릴리스
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: python3 scripts/release_notes.py "$MESSAGE" "$GITHUB_SHA"
+
   publish:
     name: npm 에 올리기
+    needs: tag
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.tag.outputs.version != '')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
