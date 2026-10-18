@@ -98,6 +98,10 @@ tester  auth_signup_tester {nickName, favoriteGenreList}
 테스터의 `pendingId`는 승인 후에도 계속 쓰는 로그인 키다. 한 번 승인받으면 `auth_setup {as: "tester", pendingId}`로
 다른 컴퓨터에서도 바로 쓸 수 있다.
 
+파일에 계정이 없으면 `auth_login`이 AWS 프로필로 Parameter Store에서 읽는다
+(tester는 `auth/tester/<IAM 사용자 이름>/pending-id`, admin은 `auth/admin/<IAM 사용자 이름>/{email,password}`).
+그러니 `auth_setup`부터 부르지 말고 `auth_login`을 먼저 불러 본다. 실패 메시지에 어느 경로가 비었는지 나온다.
+
 ## 5. 릴리스 전 스펙 비교
 
 ```

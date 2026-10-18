@@ -274,6 +274,22 @@ tester  auth_signup_tester {nickName, favoriteGenreList}
 테스터의 `pendingId` 는 승인 대기용 임시값이 아니라 **승인 후에도 계속 쓰는 로그인 키**다.
 한 번 승인받으면 다른 컴퓨터에서도 `auth_setup {as: "tester", pendingId}` 로 바로 쓴다.
 
+**파일 없이 쓰기 (Parameter Store)**
+
+`.storix-mcp.json` 에 계정이 없으면 `auth_login` 이 각자의 AWS 프로필로 Parameter Store 에서 읽는다.
+파일에 계정을 둔 사람은 지금처럼 파일 계정을 쓴다.
+
+| 계정 | 경로 (`STORIX_PARAM_PREFIX` 아래) | 누가 넣나 |
+|---|---|---|
+| tester | `auth/tester/<IAM 사용자 이름>/pending-id` | 관리자가 승인받은 pendingId 를 사람마다 나눠 넣는다 |
+| admin | `auth/admin/<IAM 사용자 이름>/email` · `password` | 각자 가입한 계정을 본인이 넣는다 |
+
+- IAM 정책을 `${aws:username}` 으로 묶어 자기 경로만 읽고 쓴다. 남의 계정은 못 본다
+- 값은 `SecureString` 으로 넣는다. 비밀값은 셸 기록에 남지 않게 `read -s` 로 받아 넣는다
+- IAM 사용자 이름은 `sts get-caller-identity` 로 찾는다. 역할(assumed-role)로 들어온 프로필이면 파일로 쓴다
+- 처음 한 번은 관리자가 `scripts/auth-params-setup.sh` 를 실행한다. 정책(`storix-mcp-auth-params`)을 developers · admin 그룹에 붙이고,
+  값을 넣는 명령을 출력한다. 값 자체는 스크립트가 넣지 않는다
+
 쓰기 메서드는 기본으로 막혀 있다. 열려면 서버 설정에 `SWAGGER_MCP_ALLOW_WRITE=true`
 가 있어야 한다. 툴 인자로는 못 켠다 — 인자였으면 AI 가 스스로 켤 수 있어 관문이 못 된다.
 
