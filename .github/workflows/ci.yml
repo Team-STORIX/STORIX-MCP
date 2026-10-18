@@ -3,7 +3,7 @@ name: STORIX CI - Syntax & Startup Check
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   # 공개 저장소라 운영 값(DB · 계정 · 인스턴스 이름, 계정 ID 등)이 들어오면 막는다.
