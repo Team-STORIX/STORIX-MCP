@@ -19,8 +19,9 @@ async function credentials() {
     }
     try {
       const { readParams } = await import("../../shared/params.js");
-      const got = await readParams(["swagger/user", "swagger/password"]);
-      return { user: got["swagger/user"], password: got["swagger/password"] };
+      // 서버가 쓰는 값을 그대로 읽어야 비밀번호를 바꿔도 어긋나지 않는다
+      const got = await readParams(["env/SWAGGER_USER", "env/SWAGGER_PASSWORD"]);
+      return { user: got["env/SWAGGER_USER"], password: got["env/SWAGGER_PASSWORD"] };
     } catch (e) {
       return { user: "", password: "", error: e.message };
     }
