@@ -30,7 +30,8 @@ aws iam put-role-policy --role-name "$ROLE_NAME" --policy-name snapshots-only \
       {\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\"],
        \"Resource\":\"arn:aws:s3:::${BUCKET}/${PREFIX}/*\"},
       {\"Effect\":\"Allow\",\"Action\":\"ssm:GetParameters\",
-       \"Resource\":\"arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/storix/dev/swagger/*\"},
+       \"Resource\":[\"arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/storix/dev/env/SWAGGER_USER\",
+                     \"arn:aws:ssm:${REGION}:${ACCOUNT}:parameter/storix/dev/env/SWAGGER_PASSWORD\"]},
       {\"Effect\":\"Allow\",\"Action\":\"s3:ListBucket\",
        \"Resource\":\"arn:aws:s3:::${BUCKET}\",
        \"Condition\":{\"StringLike\":{\"s3:prefix\":\"${PREFIX}/*\"}}}
