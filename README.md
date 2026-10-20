@@ -23,6 +23,54 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 대화 중에 끝내려고 만들었다.
 
 빌드 단계가 없다. Node 18+ 만 있으면 된다.
+## 🛠️ Tech Stack
+
+<table>
+  <tr>
+    <td align="center"><b>Runtime</b></td>
+    <td>
+      <img alt="Node.js-18+" src="https://img.shields.io/badge/Node.js-18%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white">
+      <img alt="MCP SDK-1.12" src="https://img.shields.io/badge/MCP_SDK-1.12-000000?style=flat-square">
+      <img alt="Zod" src="https://img.shields.io/badge/Zod-3E67B1?style=flat-square&logo=zod&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>AWS</b></td>
+    <td>
+      <img alt="AWS SDK v3" src="https://img.shields.io/badge/AWS_SDK_v3-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white">
+      <img alt="EC2 · SSM · STS" src="https://img.shields.io/badge/EC2_·_SSM_·_STS-FF9900?style=flat-square&logo=amazonec2&logoColor=white">
+      <img alt="Amazon S3" src="https://img.shields.io/badge/Amazon_S3-569A31?style=flat-square&logo=amazons3&logoColor=white">
+      <img alt="AWS Lambda" src="https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat-square&logo=awslambda&logoColor=white">
+      <img alt="Amazon RDS" src="https://img.shields.io/badge/Amazon_RDS-527FFF?style=flat-square&logo=amazonrds&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>Data</b></td>
+    <td>
+      <img alt="MySQL (mysql2)" src="https://img.shields.io/badge/MySQL_(mysql2)-4479A1?style=flat-square&logo=mysql&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>CI / CD</b></td>
+    <td>
+      <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white">
+      <img alt="npm" src="https://img.shields.io/badge/npm-CB3837?style=flat-square&logo=npm&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>외부 연동</b></td>
+    <td>
+      <img alt="Slack" src="https://img.shields.io/badge/Slack-4A154B?style=flat-square&logo=slack&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>테스트</b></td>
+    <td>
+      <img alt="node:test" src="https://img.shields.io/badge/node:test-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white">
+    </td>
+  </tr>
+</table>
+
 ## 🧩 모듈
 
 서버는 `storix` 하나이고 기능은 모듈로 나뉜다. 툴 이름이 `<모듈>_<기능>` 이라
