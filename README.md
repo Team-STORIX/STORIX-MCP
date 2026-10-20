@@ -23,7 +23,55 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 대화 중에 끝내려고 만들었다.
 
 빌드 단계가 없다. Node 18+ 만 있으면 된다.
-## 🧩 모듈
+## 🛠️ Tech Stack
+
+<table>
+  <tr>
+    <td align="center"><b>Runtime</b></td>
+    <td>
+      <img alt="Node.js-18+" src="https://img.shields.io/badge/Node.js-18%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white">
+      <img alt="MCP SDK-1.12" src="https://img.shields.io/badge/MCP_SDK-1.12-000000?style=flat-square">
+      <img alt="Zod" src="https://img.shields.io/badge/Zod-3E67B1?style=flat-square&logo=zod&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>AWS</b></td>
+    <td>
+      <img alt="AWS SDK v3" src="https://img.shields.io/badge/AWS_SDK_v3-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white">
+      <img alt="EC2 · SSM · STS" src="https://img.shields.io/badge/EC2_·_SSM_·_STS-FF9900?style=flat-square&logo=amazonec2&logoColor=white">
+      <img alt="Amazon S3" src="https://img.shields.io/badge/Amazon_S3-569A31?style=flat-square&logo=amazons3&logoColor=white">
+      <img alt="AWS Lambda" src="https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat-square&logo=awslambda&logoColor=white">
+      <img alt="Amazon RDS" src="https://img.shields.io/badge/Amazon_RDS-527FFF?style=flat-square&logo=amazonrds&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>Data</b></td>
+    <td>
+      <img alt="MySQL (mysql2)" src="https://img.shields.io/badge/MySQL_(mysql2)-4479A1?style=flat-square&logo=mysql&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>CI / CD</b></td>
+    <td>
+      <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white">
+      <img alt="npm" src="https://img.shields.io/badge/npm-CB3837?style=flat-square&logo=npm&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>외부 연동</b></td>
+    <td>
+      <img alt="Slack" src="https://img.shields.io/badge/Slack-4A154B?style=flat-square&logo=slack&logoColor=white">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>테스트</b></td>
+    <td>
+      <img alt="node:test" src="https://img.shields.io/badge/node:test-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white">
+    </td>
+  </tr>
+</table>
+
+## 🧩 Modules
 
 서버는 `storix` 하나이고 기능은 모듈로 나뉜다. 툴 이름이 `<모듈>_<기능>` 이라
 이름만 보고 어느 모듈 것인지 안다.
@@ -42,7 +90,7 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 
 전체 툴과 쓰는 법은 [쓰기](guide/usage.md) 에 있다.
 
-## 🔌 붙이기
+## 🔌 Setup
 
 ```bash
 claude mcp add storix --scope user -- npx -y @team-storix/storix-mcp@latest
@@ -54,14 +102,14 @@ claude mcp add storix --scope user -- npx -y @team-storix/storix-mcp@latest
 - `--scope user` 로 넣는다. `--scope project` 는 `.mcp.json` 이 저장소에 커밋되므로 쓰지 않는다
 - 저장소에서 바로 띄우려면 `git clone` · `npm install` 뒤 `-- node "$PWD/src/index.js"` 로 등록한다
 
-## 📚 문서
+## 📚 Docs
 
 | 문서 | 내용 |
 |---|---|
 | [쓰기](guide/usage.md) | 스펙 보기 · 에러 코드 · 변경 이력 · 실제 호출 · 오류 제보 · 지표 · 앱 흐름 · dev 서버 · 운영 DB · 툴 목록 · 한계 |
 | [환경변수](guide/configuration.md) | 모듈별 환경변수와 기본값 |
 
-## 🌐 서버 인프라
+## 🌐 Server Infrastructure
 
 로컬에서는 각자의 Claude Code 가 `storix` 를 stdio 로 띄운다. 배포 파이프라인에 붙는 일은
 Lambda 가 맡고, 자격증명과 배포 이력은 AWS 에 둔다.
@@ -90,7 +138,7 @@ STORIX-BE CD (develop 머지)
 
 리소스를 만드는 명령은 `scripts/aws-setup.sh`, 자동 종료 Lambda 코드는 `scripts/dev-autostop-lambda.mjs` 에 있다.
 
-## 📂 프로젝트 구조
+## 📂 Project Structure
 
 ```
 STORIX-MCP/
