@@ -97,7 +97,6 @@ STORIX-MCP/
   │
   ├── src/
   │   ├── index.js                # stdio 진입점 (npx 로 받는 것)
-  │   ├── http.js                 # HTTP 진입점 (/mcp, basic auth)
   │   ├── cli.js                  # CD 용 snapshot · changelog
   │   ├── lambda.js               # storix-spec-changelog 핸들러
   │   ├── server.js               # storix 서버 하나를 만들고 모듈을 등록
@@ -125,14 +124,12 @@ STORIX-MCP/
 
 - 진입점과 모듈
   ```
-  index.js (stdio, local=true)  ─┐
-                                 ├→ server.js → modules/index.js → 각 모듈 register()
-  http.js  (HTTP,  local=false) ─┘
-  cli.js · lambda.js ──────────────→ modules/swagger (같은 diff 로 판정)
+  index.js (stdio) ──→ server.js → modules/index.js → 각 모듈 register()
+  cli.js · lambda.js ─→ modules/swagger (같은 diff 로 판정)
   ```
 
 모듈을 추가하려면 `src/modules/<이름>/index.js` 에 `NAMESPACE` 와
-`register(server, { local })` 을 내보내고 `src/modules/index.js` 에 한 줄 넣는다.
+`register(server)` 를 내보내고 `src/modules/index.js` 에 한 줄 넣는다.
 
 ## 🛠️ Developer
 <table>
