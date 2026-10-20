@@ -22,9 +22,7 @@ function argsText(schema) {
   return parts.length ? `\n인자 — ${parts.join(", ")}` : "";
 }
 
-export async function register(server, { local = true } = {}) {
-  // 자식은 그 사람 컴퓨터에서 뜨는 프로세스다. 여럿이 함께 쓰는 원격 모드에서는 뜻이 없다.
-  if (!local) return;
+export async function register(server) {
 
   const configured = await readChildren();
   if (!configured.length) return;

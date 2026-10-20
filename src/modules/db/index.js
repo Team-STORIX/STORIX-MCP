@@ -38,9 +38,7 @@ function explainError(e) {
   return m;
 }
 
-export function register(server, { local = true } = {}) {
-  // 각자의 AWS 자격증명으로 IAM 토큰을 받으므로 여러 사람이 함께 쓰는 원격 모드에서는 띄우지 않는다
-  if (!local) return;
+export function register(server) {
   const tool = namespaced(server, NAMESPACE);
   const dbArg = z
     .enum(Object.keys(DATABASES))

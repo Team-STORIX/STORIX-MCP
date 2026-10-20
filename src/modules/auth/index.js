@@ -53,27 +53,8 @@ async function findAccount(role, creds) {
   }
 }
 
-export function register(server, { local = true } = {}) {
+export function register(server) {
   const tool = namespaced(server, NAMESPACE);
-
-  // 공유 서버에서 한 사람 자격증명으로 모두가 호출하게 되면 안 된다.
-  if (!local) {
-    tool(
-      "status",
-      {
-        title: "로그인 상태",
-        description: "이 서버에서는 로그인 기능이 꺼져 있다.",
-        inputSchema: {},
-      },
-      async () =>
-        text(
-          "이 서버는 여러 사람이 함께 쓰는 원격 모드라 로그인 기능이 꺼져 있습니다.\n" +
-            "한 사람의 자격증명으로 모두가 API를 호출하게 되기 때문입니다.\n" +
-            "직접 호출이 필요하면 swagger_call_api의 token 인자에 본인 JWT를 넘기세요."
-        )
-    );
-    return;
-  }
 
   tool(
     "setup",

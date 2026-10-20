@@ -69,7 +69,7 @@ jobs:
 
       - name: 구문 검사
         run: |
-          find src smoke-http.mjs -name '*.js' -o -name '*.mjs' | while read -r f; do
+          find src -name '*.js' -o -name '*.mjs' | while read -r f; do
             node --check "$f" || exit 1
           done
 
