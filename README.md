@@ -15,6 +15,7 @@ STORIX-MCP
 ![Node](https://img.shields.io/badge/Node-18+-5FA04E)
 ![MCP SDK](https://img.shields.io/badge/MCP_SDK-1.12-000000)
 ![License](https://img.shields.io/badge/License-MIT-blue)
+
 [![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/Immmii/badge.svg)](https://hub.xerj.org/contributors/Immmii)
 
 STORIX 개발에 쓰는 도구들을 Claude 에 붙이는 MCP 서버.
