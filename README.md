@@ -12,7 +12,6 @@ STORIX-MCP
 <h1><img src="https://github.com/user-attachments/assets/77539278-b8fc-40e2-85ac-f50340e5c417" width="25"/> STORIX MCP</h1>
 
 ![License](https://img.shields.io/badge/License-MIT-blue)
-
 [![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/Immmii/badge.svg)](https://hub.xerj.org/contributors/Immmii)
 
 STORIX 개발에 쓰는 도구들을 Claude 에 붙이는 MCP 서버.
