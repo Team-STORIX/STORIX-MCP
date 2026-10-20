@@ -301,22 +301,22 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 | `report_send` | 판정을 붙여 슬랙에 제보 |
 | `metrics_list` | 지표 목록과 해석 주의점 |
 | `metrics_query` | 지표 조회 |
-| `auth_setup` | 계정 저장 (로컬) |
-| `auth_login` | 토큰 발급 (로컬) |
-| `auth_signup_tester` | 테스터 가입 요청 (로컬) |
+| `auth_setup` | 계정 저장 |
+| `auth_login` | 토큰 발급 |
+| `auth_signup_tester` | 테스터 가입 요청 |
 | `auth_status` | 로그인 상태 |
-| `auth_logout` | 토큰 폐기 (로컬) |
+| `auth_logout` | 토큰 폐기 |
 | `flow_list` | 시나리오 목록 |
 | `flow_check` | 호출 없이 경로가 스펙에 있는지만 |
 | `flow_run` | 시나리오 실행과 판정 |
-| `mobile_doctor` | 도구·기기 점검, 지금 되는 것 (로컬) |
-| `mobile_open` | 딥링크로 앱 화면 띄우기 (로컬) |
-| `dev_server_status` | dev 서버 상태, 앱 응답, 자동으로 꺼지는 시각 (로컬) |
-| `dev_server_start` | dev 서버 켜기 (로컬) |
-| `dev_server_extend` | 자동 종료 미루기. 기본 2시간, 최대 12시간 (로컬) |
-| `dev_server_stop` | dev 서버 끄기 (로컬) |
-| `db_tables` | 조회할 수 있는 테이블 · 칼럼 · 인덱스 · 대략 행 수 (로컬) |
-| `db_query` | 운영 DB 읽기 전용 SELECT (로컬) |
+| `mobile_doctor` | 도구·기기 점검, 지금 되는 것 |
+| `mobile_open` | 딥링크로 앱 화면 띄우기 |
+| `dev_server_status` | dev 서버 상태, 앱 응답, 자동으로 꺼지는 시각 |
+| `dev_server_start` | dev 서버 켜기 |
+| `dev_server_extend` | 자동 종료 미루기. 기본 2시간, 최대 12시간 |
+| `dev_server_stop` | dev 서버 끄기 |
+| `db_tables` | 조회할 수 있는 테이블 · 칼럼 · 인덱스 · 대략 행 수 |
+| `db_query` | 운영 DB 읽기 전용 SELECT |
 
 ## 각자 만든 MCP 붙이기
 
@@ -343,7 +343,6 @@ EFS 도 결국 POSIX 마운트라 `fs` 백엔드가 그대로 동작한다. `SWA
 
 몇 가지 정해둔 것:
 
-- **로컬 전용이다.** 원격 HTTP 모드에서는 꺼진다 — 자식은 그 사람 컴퓨터에서 뜨는 프로세스다
 - **자식이 죽어도 storix 는 뜬다.** 10초 안에 안 붙으면 건너뛰고 `bridge_list` 에 이유를 남긴다
   (`STORIX_BRIDGE_TIMEOUT_MS` 로 조절)
 - **별칭이 `swagger` `auth` `report` `metrics` `mobile` `flow` 면 건너뛴다** — 이름이 겹친다

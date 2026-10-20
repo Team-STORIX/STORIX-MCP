@@ -25,7 +25,7 @@
 IAM 에서 해당 파라미터 경로만 열어주면 된다.
 
 
-## auth (로컬 전용)
+## auth
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
@@ -64,7 +64,7 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 |---|---|---|
 | `STORIX_FLOWS_DIR` | 저장소의 `flows/` | 시나리오를 둘 위치 |
 
-## mobile (로컬 전용)
+## mobile
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
@@ -72,18 +72,10 @@ IAM 에서 해당 파라미터 경로만 열어주면 된다.
 | `STORIX_APP_IOS_BUNDLE_ID` | `kr.storix.app` | 시뮬레이터에 앱이 깔렸는지 볼 때 쓴다 |
 | `STORIX_APP_ANDROID_PACKAGE` | `kr.storix.android` | 위와 같다 |
 
-## dev_server (로컬 전용)
+## dev_server
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `STORIX_DEV_INSTANCE_NAME` | `Dev Server` | dev 인스턴스의 Name 태그. Env 태그가 `dev` 인 것만 다룬다 |
 
 EC2 는 각자 AWS 프로필로 부른다. 그 계정이 IAM `developers` 그룹에 들어 있어야 한다.
-
-## HTTP 모드
-
-| 변수 | 기본값 | 설명 |
-|---|---|---|
-| `MCP_PORT` | `8090` | 3000 은 프론트 dev 서버가 쓰므로 피했다 |
-| `MCP_BASIC_USER` / `MCP_BASIC_PASSWORD` | `SWAGGER_*` 값 | 접속 계정 |
-| `MCP_ALLOWED_ORIGINS` | (비어 있음) | 허용할 `Origin`, 쉼표 구분 |
