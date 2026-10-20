@@ -54,9 +54,7 @@ async function appResponding() {
   }
 }
 
-export function register(server, { local = true } = {}) {
-  // 공유 서버에 EC2 권한을 두면 접속한 모두가 그 권한으로 서버를 끄고 켜게 된다.
-  if (!local) return;
+export function register(server) {
 
   const tool = namespaced(server, NAMESPACE);
 

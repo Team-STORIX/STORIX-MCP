@@ -14,15 +14,14 @@ description: STORIX 공식 MCP(서버 이름 storix)를 붙이고 쓴다. 최초
 
 저장소: `~/Desktop/Coding/MCP/storix-mcp` (독립 git, 원격 없음, 빌드 없음)
 
-## 인증은 세 겹이고 서로 다른 것이다
+## 인증은 두 겹이고 서로 다른 것이다
 
 섞으면 계속 헤맨다.
 
 | 겹 | 무엇을 여는가 | 값 | 없으면 |
 |---|---|---|---|
 | ① 스펙 읽기 | 서버가 `dev.storix.kr/v3/api-docs`를 읽음 | `SWAGGER_USER`/`SWAGGER_PASSWORD` (basic) | 모든 툴이 401 |
-| ② MCP 접속 | 원격 MCP에 클라이언트가 붙음 | `MCP_BASIC_USER`/`MCP_BASIC_PASSWORD` | HTTP 모드에서만 해당. stdio는 불필요 |
-| ③ API 호출 | `swagger_call_api`가 dev에 실제 요청 | `STORIX_DEV_TOKEN` (Bearer JWT) | 호출은 되고 401이 돌아옴 |
+| ② API 호출 | `swagger_call_api`가 dev에 실제 요청 | `STORIX_DEV_TOKEN` (Bearer JWT) | 호출은 되고 401이 돌아옴 |
 
 **비밀번호를 파일에서 찾아 읽지 마라.** `application.yml`에는 swagger 비밀번호 말고도 시크릿이 같이 있다.
 없으면 사용자에게 `!` 로 직접 넣어달라고 요청한다.
@@ -66,7 +65,7 @@ claude mcp add storix --scope user \
 | `swagger_get_endpoint` | 그 API의 요청·응답 스키마를 `$ref`까지 펼쳐서 볼 때 |
 | `swagger_get_schema` | DTO 하나를 이름으로 볼 때. 이름 생략하면 전체 목록 |
 | `swagger_errors` | 에러 코드만. 분기 짤 때 `get_endpoint`보다 7배 짧다 |
-| `swagger_call_api` | dev에 진짜 요청을 보낼 때 (③번 토큰 필요) |
+| `swagger_call_api` | dev에 진짜 요청을 보낼 때 (②번 토큰 필요) |
 | `auth_login` | API를 실제로 호출하기 전에. 4번 참고 |
 | `swagger_history` | "뭐 바뀌었어?" 배포 시점별 변경 이력. `tag`/`path`로 좁힘 |
 | `swagger_snapshot_spec` | 지금 스펙을 라벨 붙여 저장. 라벨 생략하면 목록 |
@@ -79,7 +78,7 @@ claude mcp add storix --scope user \
 
 찾기 → 상세 → 필요하면 호출. 스키마를 안 보고 `swagger_call_api`부터 부르지 마라. 바디 모양을 지어내게 된다.
 
-## 4. ③번 토큰 — auth 모듈
+## 4. ②번 토큰 — auth 모듈
 
 `swagger_call_api`가 401을 주면 로그인하면 된다. 계정은 한 번만 등록해두면 된다.
 
@@ -123,17 +122,12 @@ breaking으로 분류: 엔드포인트·필드·응답 상태코드 제거, 타�
 | `claude mcp list`에 안 나옴 | 다른 디렉터리에서 쳤다. 프로젝트 스코프로 등록됐는지 확인 |
 | 옛 이름(`mcp__storix-swagger__*`)이 보임 | 이름 변경 전 세션이다. 재시작 |
 | 전부 401 | ①번 basic auth 값 |
-| `swagger_call_api`만 401 | ③번 JWT |
+| `swagger_call_api`만 401 | ②번 JWT |
 | 전부 502 이거나 응답이 없음 | dev 서버가 꺼져 있다. `dev_server_status` → `dev_server_start`, 앱이 뜨기까지 1~2분 |
 | 스펙이 옛날 것 | `swagger_refresh_spec`. 캐시 TTL 60초 |
 | 쓰기 메서드가 막힘 | 의도된 것. 사용자가 `SWAGGER_MCP_ALLOW_WRITE=true`를 넣어야 한다 |
 
-## 7. HTTP 모드 (프론트에게 배포할 때, 아직 미배포)
-
-`src/http.js`를 띄우면 `/mcp` 하나로 서비스되고, 프론트는 클론 없이 URL만 등록하면 된다.
-이때 ②번 인증이 붙는다. 스모크 검사는 `node smoke-http.mjs` (무인증 401 / 낯선 Origin 403 / healthz 200 / 툴 개수 / 쓰기 차단).
-
-## 8. db 모듈 (prod 읽기 전용 조회)
+## 7. db 모듈 (prod 읽기 전용 조회)
 
 공개 저장소라 실제 이름은 코드에 없다. 접속 정보는 Parameter Store `/storix/dev/db/{rds-host,user,prod-db,staging-db}` 에서
 각자의 AWS 자격증명으로 읽는다 (정책 `storix-db-reader-connect` = 이 값 읽기 + rds-db:connect, developers · admin 그룹).

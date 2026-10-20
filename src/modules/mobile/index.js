@@ -17,9 +17,7 @@ import { GUIDE } from "./guide.js";
 
 export const NAMESPACE = "mobile";
 
-export function register(server, { local = true } = {}) {
-  // 기기를 만지는 일이라 그 사람 컴퓨터에서만 뜻이 있다. auth 가 원격에서 꺼지는 것과 같은 이유.
-  if (!local) return;
+export function register(server) {
 
   const tool = namespaced(server, NAMESPACE);
 
