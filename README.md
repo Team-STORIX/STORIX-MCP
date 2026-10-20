@@ -28,21 +28,21 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 서버는 `storix` 하나이고 기능은 모듈로 나뉜다. 툴 이름이 `<모듈>_<기능>` 이라
 이름만 보고 어느 모듈 것인지 안다.
 
-| 모듈 | 하는 일 | 원격에서도 쓸 수 있나 |
-|---|---|---|
-| `swagger` | 스펙 조회, 에러 코드, 배포별 변경 이력, 실제 호출 | 예 |
-| `report` | 어긋난 곳 판정, 슬랙 제보 | 예 |
-| `metrics` | 미리 정의한 집계 질의 | 예 |
-| `auth` | 관리자·테스터 로그인, 토큰 관리 | **아니오, 로컬 전용** |
-| `flow` | 사용자 흐름 시나리오를 API 로 돌리고 판정 | 예 |
-| `mobile` | 앱 화면 띄우기, Maestro 안내 | **아니오, 로컬 전용** |
-| `db` | 운영 DB 읽기 전용 조회 (IAM 인증) | **아니오, 로컬 전용** |
+| 모듈 | 하는 일 |
+|---|---|
+| `swagger` | 스펙 조회, 에러 코드, 배포별 변경 이력, 실제 호출 |
+| `report` | 어긋난 곳 판정, 슬랙 제보 |
+| `metrics` | 미리 정의한 집계 질의 |
+| `auth` | 관리자 · 테스터 로그인, 토큰 관리 |
+| `flow` | 사용자 흐름 시나리오를 API 로 돌리고 판정 |
+| `mobile` | 앱 화면 띄우기, Maestro 안내 |
+| `dev_server` | dev 서버 켜고 끄기 |
+| `db` | 운영 DB 읽기 전용 조회 (IAM 인증) |
+| `bridge` | 각자 만든 MCP 를 `storix` 하나로 묶기 |
 
 전체 툴과 쓰는 법은 [쓰기](guide/usage.md) 에 있다.
 
 ## 🔌 붙이기
-
-### 로컬
 
 ```bash
 claude mcp add storix --scope user -- npx -y @team-storix/storix-mcp@latest
@@ -54,22 +54,12 @@ claude mcp add storix --scope user -- npx -y @team-storix/storix-mcp@latest
 - `--scope user` 로 넣는다. `--scope project` 는 `.mcp.json` 이 저장소에 커밋되므로 쓰지 않는다
 - 저장소에서 바로 띄우려면 `git clone` · `npm install` 뒤 `-- node "$PWD/src/index.js"` 로 등록한다
 
-### 원격 (아직 배포 전)
-
-```bash
-claude mcp add --transport http storix https://<주소>/mcp \
-  --header "Authorization: Basic $(printf '%s' '<계정>:<비밀번호>' | base64)"
-```
-
-`src/http.js` 를 띄우면 `/mcp` 하나로 서비스된다. 원격에서는 `auth` · `mobile` · `dev_server` · `db` 가 꺼진다 ([이유](guide/security.md)).
-
 ## 📚 문서
 
 | 문서 | 내용 |
 |---|---|
 | [쓰기](guide/usage.md) | 스펙 보기 · 에러 코드 · 변경 이력 · 실제 호출 · 오류 제보 · 지표 · 앱 흐름 · dev 서버 · 운영 DB · 툴 목록 · 한계 |
 | [환경변수](guide/configuration.md) | 모듈별 환경변수와 기본값 |
-| [로컬 전용인 것과 보안](guide/security.md) | 원격 모드에서 꺼지는 모듈과 그 이유, HTTP 모드 보안 |
 
 ## 🌐 서버 인프라
 
@@ -127,7 +117,7 @@ STORIX-MCP/
   │       ├── db/                 # 운영 DB 읽기 전용 조회 · SQL 검사 (로컬 전용)
   │       └── bridge/             # 각자 만든 MCP 묶기 (로컬 전용)
   │
-  ├── guide/                      # 쓰기 · 환경변수 · 보안 문서
+  ├── guide/                      # 쓰기 · 환경변수 문서
   ├── flows/                      # 사용자 흐름 시나리오 (*.md)
   ├── skills/storix-mcp/          # Claude 스킬
   └── scripts/                    # AWS 리소스 생성, 자동 종료 Lambda
@@ -143,7 +133,6 @@ STORIX-MCP/
 
 모듈을 추가하려면 `src/modules/<이름>/index.js` 에 `NAMESPACE` 와
 `register(server, { local })` 을 내보내고 `src/modules/index.js` 에 한 줄 넣는다.
-`local` 이 false 면 여러 사람이 함께 쓰는 원격 모드다.
 
 ## 🛠️ Developer
 <table>
