@@ -20,14 +20,14 @@ API 스펙을 찾아 읽고, 배포마다 뭐가 바뀌었는지 되짚고, 에�
 스펙과 어긋났는지 가리고, 지표를 조회한다. 스웨거 화면을 뒤지거나 DB 를 손으로 뽑던 일을
 대화 중에 끝내려고 만들었다.
 
-빌드 단계가 없다. Node 18+ 만 있으면 된다.
+빌드 단계가 없다. Node 22+ 만 있으면 된다.
 ## 🛠️ Tech Stack
 
 <table>
   <tr>
     <td align="center"><b>Runtime</b></td>
     <td>
-      <img alt="Node.js-18+" src="https://img.shields.io/badge/Node.js-18%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white">
+      <img alt="Node.js-22+" src="https://img.shields.io/badge/Node.js-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white">
       <img alt="MCP SDK-1.12" src="https://img.shields.io/badge/MCP_SDK-1.12-000000?style=flat-square">
       <img alt="Zod" src="https://img.shields.io/badge/Zod-3E67B1?style=flat-square&logo=zod&logoColor=white">
     </td>
